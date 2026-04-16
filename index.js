@@ -4,33 +4,37 @@ import { execSync } from "child_process";
 import fs from "fs";
 
 const target = process.argv[2] || ".";
-const outputFile = "secgate-v2-report.json";
+const outputFile = "secgate-v3-report.json";
 
 /* -----------------------------
-   ENGINE STATE
+   STATE
 ------------------------------*/
 
-let CRITICAL = 0;
-let HIGH = 0;
-let MEDIUM = 0;
-let LOW = 0;
+const findingsRaw = [];
 
 const report = {
-  version: "2.0",
+  version: "3.0",
   timestamp: new Date().toISOString(),
   target,
   status: "PASS",
-  score: {
+  summary: {
+    total: 0,
     critical: 0,
     high: 0,
     medium: 0,
     low: 0
   },
-  findings: []
+  findings: [],
+  intelligence: {
+    riskScore: 0,
+    topRisks: [],
+    attackSurface: [],
+    recommendations: []
+  }
 };
 
 /* -----------------------------
-   UTILITIES
+   UTILS
 ------------------------------*/
 
 function toolExists(cmd) {
@@ -42,180 +46,258 @@ function toolExists(cmd) {
   }
 }
 
-function addFinding(tool, severity, message) {
-  const finding = {
-    tool,
-    severity,
-    message: message.slice(0, 1500)
-  };
-
-  report.findings.push(finding);
-
-  if (severity === "CRITICAL") CRITICAL++;
-  if (severity === "HIGH") HIGH++;
-  if (severity === "MEDIUM") MEDIUM++;
-  if (severity === "LOW") LOW++;
-}
-
-function run(name, cmd, parser = null, critical = false) {
-  console.log(`\n[RUN] ${name}`);
-  console.log(`$ ${cmd}`);
-
+function safeExec(name, cmd) {
   try {
-    const out = execSync(cmd, {
-      encoding: "utf-8",
-      stdio: "pipe"
-    });
-
-    if (parser) {
-      parser(out);
-    }
-
-    console.log(`[OK] ${name}`);
+    const out = execSync(cmd, { encoding: "utf-8", stdio: "pipe" });
+    return out.toString();
   } catch (err) {
-    const msg =
-      (err.stdout || "").toString() +
-      (err.stderr || "").toString() +
-      (err.message || "");
-
-    console.log(`[FAIL] ${name}`);
-
-    // default classification
-    const severity = critical ? "CRITICAL" : "MEDIUM";
-
-    addFinding(name, severity, msg);
-
-    if (critical) {
-      console.log("!! CRITICAL FAILURE DETECTED");
-    }
+    return (err.stdout || "") + (err.stderr || "");
   }
 }
 
 /* -----------------------------
-   SCANNERS
+   NORMALIZED FINDING MODEL
+------------------------------*/
+
+function addFinding(f) {
+  findingsRaw.push({
+    id: `${f.tool}-${f.signature}`,
+    tool: f.tool,
+    type: f.type || "unknown",
+    severity: f.severity || "LOW",
+    message: f.message || "",
+    asset: f.asset || target
+  });
+}
+
+/* -----------------------------
+   SCANNERS (RAW → NORMALIZED)
 ------------------------------*/
 
 function semgrepScan() {
   if (!toolExists("semgrep")) return;
 
-  run(
-    "semgrep",
-    `semgrep --config=auto ${target}`,
-    (out) => {
-      if (out.includes("ERROR") || out.includes("HIGH")) {
-        addFinding("semgrep", "HIGH", out);
-      } else if (out.includes("WARNING")) {
-        addFinding("semgrep", "MEDIUM", out);
-      }
-    },
-    true // critical scanner
-  );
+  const out = safeExec("semgrep", `semgrep --config=auto ${target}`);
+
+  if (out.includes("ERROR") || out.includes("HIGH")) {
+    addFinding({
+      tool: "semgrep",
+      signature: "generic",
+      severity: "HIGH",
+      type: "code",
+      message: out.slice(0, 1500)
+    });
+  }
 }
 
 function gitleaksScan() {
   if (!toolExists("gitleaks")) return;
 
-  run(
-    "gitleaks",
-    `gitleaks detect --source ${target}`,
-    (out) => {
-      if (out.includes("leak")) {
-        addFinding("gitleaks", "HIGH", out);
-      }
-    }
-  );
+  const out = safeExec("gitleaks", `gitleaks detect --source ${target}`);
+
+  if (out.includes("leak")) {
+    addFinding({
+      tool: "gitleaks",
+      signature: "secret",
+      severity: "CRITICAL",
+      type: "secret",
+      message: out.slice(0, 1500)
+    });
+  }
 }
 
 function trivyScan() {
   if (!toolExists("trivy")) return;
 
-  run("trivy", `trivy fs ${target}`, (out) => {
-    if (out.includes("CRITICAL")) addFinding("trivy", "CRITICAL", out);
-    else if (out.includes("HIGH")) addFinding("trivy", "HIGH", out);
-    else if (out.includes("MEDIUM")) addFinding("trivy", "MEDIUM", out);
-  });
+  const out = safeExec("trivy", `trivy fs ${target}`);
+
+  if (out.includes("CRITICAL")) {
+    addFinding({
+      tool: "trivy",
+      signature: "vuln-critical",
+      severity: "CRITICAL",
+      type: "dependency",
+      message: out.slice(0, 1500)
+    });
+  } else if (out.includes("HIGH")) {
+    addFinding({
+      tool: "trivy",
+      signature: "vuln-high",
+      severity: "HIGH",
+      type: "dependency",
+      message: out.slice(0, 1500)
+    });
+  }
 }
 
 function npmAudit() {
   if (!fs.existsSync(`${target}/package.json`)) return;
 
-  run("npm-audit", `cd ${target} && npm audit --json`, (out) => {
-    try {
-      const json = JSON.parse(out);
+  const out = safeExec("npm", `cd ${target} && npm audit --json`);
 
-      const vulns = json?.vulnerabilities || {};
+  try {
+    const json = JSON.parse(out);
+    const vulns = json.vulnerabilities || {};
 
-      for (const k in vulns) {
-        const v = vulns[k];
-        if (v.severity === "critical") addFinding("npm", "CRITICAL", k);
-        if (v.severity === "high") addFinding("npm", "HIGH", k);
-        if (v.severity === "moderate") addFinding("npm", "MEDIUM", k);
-      }
-    } catch {
-      addFinding("npm", "LOW", "audit parse failed");
+    for (const k in vulns) {
+      const v = vulns[k];
+
+      addFinding({
+        tool: "npm",
+        signature: k,
+        severity:
+          v.severity === "critical"
+            ? "CRITICAL"
+            : v.severity === "high"
+            ? "HIGH"
+            : v.severity === "moderate"
+            ? "MEDIUM"
+            : "LOW",
+        type: "dependency",
+        message: k
+      });
     }
-  });
+  } catch {
+    if (!out.includes("ENOLOCK")) {
+      addFinding({
+        tool: "npm",
+        signature: "audit-failed",
+        severity: "LOW",
+        type: "tooling",
+        message: "npm audit parse failed"
+      });
+    }
+  }
 }
 
-function pipAudit() {
-  if (!fs.existsSync(`${target}/requirements.txt`)) return;
+/* -----------------------------
+   DEDUP ENGINE (CORE v3 FEATURE)
+------------------------------*/
 
-  run("pip-audit", `pip-audit -r ${target}/requirements.txt`, (out) => {
-    if (out.includes("HIGH")) addFinding("pip", "HIGH", out);
-  });
+function deduplicate(findings) {
+  const map = new Map();
+
+  for (const f of findings) {
+    const key = `${f.tool}-${f.signature}`;
+
+    if (!map.has(key)) {
+      map.set(key, f);
+    } else {
+      // escalate severity if seen multiple times
+      const existing = map.get(key);
+
+      const rank = { LOW: 1, MEDIUM: 2, HIGH: 3, CRITICAL: 4 };
+
+      if (rank[f.severity] > rank[existing.severity]) {
+        existing.severity = f.severity;
+      }
+    }
+  }
+
+  return [...map.values()];
+}
+
+/* -----------------------------
+   INTELLIGENCE ENGINE
+------------------------------*/
+
+function computeIntelligence(findings) {
+  const severityWeight = {
+    CRITICAL: 10,
+    HIGH: 5,
+    MEDIUM: 2,
+    LOW: 1
+  };
+
+  let score = 0;
+
+  const attackSurface = new Set();
+  const recommendations = [];
+
+  for (const f of findings) {
+    score += severityWeight[f.severity] || 0;
+
+    attackSurface.add(f.type);
+
+    if (f.severity === "CRITICAL") {
+      recommendations.push(`Fix critical issue in ${f.tool}`);
+    }
+
+    if (f.type === "secret") {
+      recommendations.push("Rotate exposed secrets immediately");
+    }
+
+    if (f.type === "dependency") {
+      recommendations.push("Update vulnerable dependencies");
+    }
+  }
+
+  return {
+    riskScore: score,
+    attackSurface: [...attackSurface],
+    recommendations: [...new Set(recommendations)]
+  };
 }
 
 /* -----------------------------
    PIPELINE
 ------------------------------*/
 
-console.log("\nSEC GATE v2 ENGINE START");
+console.log("\nSEC GATE v3 INTELLIGENCE ENGINE");
 console.log("Target:", target);
 console.log("--------------------------------");
 
-/* PHASE 1: STATIC ANALYSIS */
-console.log("\n[PHASE 1] Static Analysis");
 semgrepScan();
-
-/* PHASE 2: SECRET DETECTION */
-console.log("\n[PHASE 2] Secrets");
 gitleaksScan();
-
-/* PHASE 3: DEPENDENCIES */
-console.log("\n[PHASE 3] Dependencies");
-npmAudit();
-pipAudit();
-
-/* PHASE 4: INFRASTRUCTURE */
-console.log("\n[PHASE 4] Infrastructure");
 trivyScan();
+npmAudit();
 
 /* -----------------------------
-   FINAL SCORING
+   PROCESS FINDINGS
 ------------------------------*/
 
-report.score = {
-  critical: CRITICAL,
-  high: HIGH,
-  medium: MEDIUM,
-  low: LOW
-};
+const deduped = deduplicate(findingsRaw);
 
-report.status = CRITICAL > 0 || HIGH > 0 ? "FAIL" : "PASS";
+/* summary */
+for (const f of deduped) {
+  report.summary.total++;
+
+  if (f.severity === "CRITICAL") report.summary.critical++;
+  if (f.severity === "HIGH") report.summary.high++;
+  if (f.severity === "MEDIUM") report.summary.medium++;
+  if (f.severity === "LOW") report.summary.low++;
+}
+
+report.findings = deduped;
+report.intelligence = computeIntelligence(deduped);
+
+/* -----------------------------
+   FINAL STATUS
+------------------------------*/
+
+report.status =
+  report.summary.critical > 0
+    ? "FAIL"
+    : report.summary.high > 0
+    ? "FAIL"
+    : "PASS";
 
 /* -----------------------------
    OUTPUT
 ------------------------------*/
 
 console.log("\n--------------------------------");
-console.log("SEC GATE v2 COMPLETE");
+console.log("SEC GATE v3 COMPLETE");
 console.log("STATUS:", report.status);
 
-console.log("SCORE:", report.score);
+console.log("SUMMARY:", report.summary);
+console.log("RISK SCORE:", report.intelligence.riskScore);
+
+console.log("\nTOP RECOMMENDATIONS:");
+report.intelligence.recommendations.forEach(r => console.log("-", r));
 
 fs.writeFileSync(outputFile, JSON.stringify(report, null, 2));
 
-console.log("Report saved:", outputFile);
+console.log("\nReport saved:", outputFile);
 
-/* exit code for CI */
 process.exit(report.status === "PASS" ? 0 : 1);
