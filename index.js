@@ -4,20 +4,34 @@ import { execSync } from "child_process";
 import fs from "fs";
 
 const target = process.argv[2] || ".";
-const reportFile = "soc-report.json";
+const outputFile = "secgate-v2-report.json";
 
-let FAIL = 0;
+/* -----------------------------
+   ENGINE STATE
+------------------------------*/
+
+let CRITICAL = 0;
+let HIGH = 0;
+let MEDIUM = 0;
+let LOW = 0;
 
 const report = {
+  version: "2.0",
   timestamp: new Date().toISOString(),
   target,
   status: "PASS",
-  checks: {}
+  score: {
+    critical: 0,
+    high: 0,
+    medium: 0,
+    low: 0
+  },
+  findings: []
 };
 
-function exists(path) {
-  return fs.existsSync(path);
-}
+/* -----------------------------
+   UTILITIES
+------------------------------*/
 
 function toolExists(cmd) {
   try {
@@ -28,7 +42,22 @@ function toolExists(cmd) {
   }
 }
 
-function safeRun(name, cmd, critical = false) {
+function addFinding(tool, severity, message) {
+  const finding = {
+    tool,
+    severity,
+    message: message.slice(0, 1500)
+  };
+
+  report.findings.push(finding);
+
+  if (severity === "CRITICAL") CRITICAL++;
+  if (severity === "HIGH") HIGH++;
+  if (severity === "MEDIUM") MEDIUM++;
+  if (severity === "LOW") LOW++;
+}
+
+function run(name, cmd, parser = null, critical = false) {
   console.log(`\n[RUN] ${name}`);
   console.log(`$ ${cmd}`);
 
@@ -38,10 +67,9 @@ function safeRun(name, cmd, critical = false) {
       stdio: "pipe"
     });
 
-    report.checks[name] = {
-      ok: true,
-      output: out?.toString()?.slice(0, 1500) || ""
-    };
+    if (parser) {
+      parser(out);
+    }
 
     console.log(`[OK] ${name}`);
   } catch (err) {
@@ -50,112 +78,144 @@ function safeRun(name, cmd, critical = false) {
       (err.stderr || "").toString() +
       (err.message || "");
 
-    report.checks[name] = {
-      ok: false,
-      error: msg.slice(0, 2000)
-    };
-
     console.log(`[FAIL] ${name}`);
-    console.log(msg.slice(0, 400));
 
-    if (critical) FAIL = 1;
+    // default classification
+    const severity = critical ? "CRITICAL" : "MEDIUM";
+
+    addFinding(name, severity, msg);
+
+    if (critical) {
+      console.log("!! CRITICAL FAILURE DETECTED");
+    }
   }
 }
 
-/* ---------------------------
-   SOC SCAN PIPELINE
-----------------------------*/
+/* -----------------------------
+   SCANNERS
+------------------------------*/
 
-console.log("SOC SCAN START");
+function semgrepScan() {
+  if (!toolExists("semgrep")) return;
+
+  run(
+    "semgrep",
+    `semgrep --config=auto ${target}`,
+    (out) => {
+      if (out.includes("ERROR") || out.includes("HIGH")) {
+        addFinding("semgrep", "HIGH", out);
+      } else if (out.includes("WARNING")) {
+        addFinding("semgrep", "MEDIUM", out);
+      }
+    },
+    true // critical scanner
+  );
+}
+
+function gitleaksScan() {
+  if (!toolExists("gitleaks")) return;
+
+  run(
+    "gitleaks",
+    `gitleaks detect --source ${target}`,
+    (out) => {
+      if (out.includes("leak")) {
+        addFinding("gitleaks", "HIGH", out);
+      }
+    }
+  );
+}
+
+function trivyScan() {
+  if (!toolExists("trivy")) return;
+
+  run("trivy", `trivy fs ${target}`, (out) => {
+    if (out.includes("CRITICAL")) addFinding("trivy", "CRITICAL", out);
+    else if (out.includes("HIGH")) addFinding("trivy", "HIGH", out);
+    else if (out.includes("MEDIUM")) addFinding("trivy", "MEDIUM", out);
+  });
+}
+
+function npmAudit() {
+  if (!fs.existsSync(`${target}/package.json`)) return;
+
+  run("npm-audit", `cd ${target} && npm audit --json`, (out) => {
+    try {
+      const json = JSON.parse(out);
+
+      const vulns = json?.vulnerabilities || {};
+
+      for (const k in vulns) {
+        const v = vulns[k];
+        if (v.severity === "critical") addFinding("npm", "CRITICAL", k);
+        if (v.severity === "high") addFinding("npm", "HIGH", k);
+        if (v.severity === "moderate") addFinding("npm", "MEDIUM", k);
+      }
+    } catch {
+      addFinding("npm", "LOW", "audit parse failed");
+    }
+  });
+}
+
+function pipAudit() {
+  if (!fs.existsSync(`${target}/requirements.txt`)) return;
+
+  run("pip-audit", `pip-audit -r ${target}/requirements.txt`, (out) => {
+    if (out.includes("HIGH")) addFinding("pip", "HIGH", out);
+  });
+}
+
+/* -----------------------------
+   PIPELINE
+------------------------------*/
+
+console.log("\nSEC GATE v2 ENGINE START");
 console.log("Target:", target);
-console.log("-------------------------");
+console.log("--------------------------------");
 
-/* [1] STATIC ANALYSIS */
-console.log("[1] Static Analysis (Semgrep)");
+/* PHASE 1: STATIC ANALYSIS */
+console.log("\n[PHASE 1] Static Analysis");
+semgrepScan();
 
-if (toolExists("semgrep")) {
-  safeRun("semgrep", `semgrep --config=auto ${target}`, true);
-} else {
-  console.log("[SKIP] semgrep not installed");
-}
+/* PHASE 2: SECRET DETECTION */
+console.log("\n[PHASE 2] Secrets");
+gitleaksScan();
 
-/* ------------------------- */
+/* PHASE 3: DEPENDENCIES */
+console.log("\n[PHASE 3] Dependencies");
+npmAudit();
+pipAudit();
 
-console.log("-------------------------");
+/* PHASE 4: INFRASTRUCTURE */
+console.log("\n[PHASE 4] Infrastructure");
+trivyScan();
 
-/* [2] SECRETS SCAN */
-console.log("[2] Secrets Scan (Gitleaks)");
+/* -----------------------------
+   FINAL SCORING
+------------------------------*/
 
-if (toolExists("gitleaks")) {
-  safeRun("gitleaks", `gitleaks detect --source ${target}`);
-} else {
-  console.log("[SKIP] gitleaks not installed");
-}
+report.score = {
+  critical: CRITICAL,
+  high: HIGH,
+  medium: MEDIUM,
+  low: LOW
+};
 
-/* ------------------------- */
+report.status = CRITICAL > 0 || HIGH > 0 ? "FAIL" : "PASS";
 
-console.log("-------------------------");
+/* -----------------------------
+   OUTPUT
+------------------------------*/
 
-/* [3] DEPENDENCY SCAN */
-console.log("[3] Dependency Scan");
+console.log("\n--------------------------------");
+console.log("SEC GATE v2 COMPLETE");
+console.log("STATUS:", report.status);
 
-if (exists(`${target}/package.json`)) {
-  console.log("Node project detected");
+console.log("SCORE:", report.score);
 
-  safeRun(
-    "npm-audit",
-    `cd ${target} && npm audit --json`,
-    false
-  );
-}
+fs.writeFileSync(outputFile, JSON.stringify(report, null, 2));
 
-if (exists(`${target}/requirements.txt`)) {
-  console.log("Python project detected");
+console.log("Report saved:", outputFile);
 
-  safeRun(
-    "pip-audit",
-    `pip-audit -r ${target}/requirements.txt`,
-    false
-  );
-}
-
-/* ------------------------- */
-
-console.log("-------------------------");
-
-/* [4] INFRA / FS SCAN */
-console.log("[4] Filesystem / IaC Scan (Trivy)");
-
-if (toolExists("trivy")) {
-  safeRun("trivy", `trivy fs ${target}`);
-} else {
-  console.log("[SKIP] trivy not installed");
-}
-
-/* ------------------------- */
-
-/* [5] LINTING (optional) */
-console.log("[5] Lint Scan");
-
-if (exists(`${target}/package.json`) && toolExists("eslint")) {
-  safeRun("eslint", `npx eslint ${target}`);
-} else {
-  console.log("[SKIP] eslint not available or no node project");
-}
-
-/* ------------------------- */
-
-/* FINALIZE */
-report.status = FAIL === 0 ? "PASS" : "FAIL";
-
-console.log("-------------------------");
-console.log("SOC SCAN END");
-console.log("RESULT:", report.status);
-
-/* write report */
-fs.writeFileSync(reportFile, JSON.stringify(report, null, 2));
-
-console.log(`Report saved -> ${reportFile}`);
-
-/* exit code for CI / git hooks */
-process.exit(FAIL);
+/* exit code for CI */
+process.exit(report.status === "PASS" ? 0 : 1);
