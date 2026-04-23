@@ -20,6 +20,16 @@ const outputFile = "secgate-v7-report.json";
 
 const findings = [];
 
+const TOOLS = ["semgrep", "gitleaks", "npm", "osv", "trivy"];
+
+const toolStatus = {
+  semgrep: "pending",
+  gitleaks: "pending",
+  npm: "pending",
+  osv: "pending",
+  trivy: "pending"
+};
+
 const report = {
   version: "7.0",
   timestamp: new Date().toISOString(),
@@ -30,6 +40,7 @@ const report = {
   summary: { critical: 0, high: 0, medium: 0, low: 0 },
 
   findings: [],
+  tools: toolStatus,
 
   intelligence: {
     riskScore: 0,
@@ -91,13 +102,16 @@ function addFinding(f) {
 ------------------------------*/
 
 function gitleaks() {
-  if (!toolExists("gitleaks")) return;
+  if (!toolExists("gitleaks")) { toolStatus.gitleaks = "skipped"; return; }
 
   const out = run(`gitleaks detect --source ${target} --report-format json`);
   debug("gitleaks", out);
 
+  if (!out.trim()) { toolStatus.gitleaks = "clean"; return; }
+
   try {
     const data = JSON.parse(out);
+    const before = findings.length;
 
     data.forEach(item => {
       addFinding({
@@ -109,17 +123,22 @@ function gitleaks() {
         fixable: false
       });
     });
-  } catch {}
+
+    toolStatus.gitleaks = findings.length > before ? "ran" : "clean";
+  } catch {
+    toolStatus.gitleaks = "error";
+  }
 }
 
 function semgrep() {
-  if (!toolExists("semgrep")) return;
+  if (!toolExists("semgrep")) { toolStatus.semgrep = "skipped"; return; }
 
   const out = run(`semgrep --config=auto --json ${target}`);
   debug("semgrep", out);
 
   try {
     const data = JSON.parse(out);
+    const before = findings.length;
 
     data.results.forEach(r => {
       addFinding({
@@ -131,7 +150,11 @@ function semgrep() {
         fixable: true
       });
     });
-  } catch {}
+
+    toolStatus.semgrep = findings.length > before ? "ran" : "clean";
+  } catch {
+    toolStatus.semgrep = "error";
+  }
 }
 
 function severityFromCvss(score) {
@@ -142,7 +165,7 @@ function severityFromCvss(score) {
 }
 
 function osvScanner() {
-  if (!toolExists("osv-scanner")) return;
+  if (!toolExists("osv-scanner")) { toolStatus.osv = "skipped"; return; }
 
   const out = run(`osv-scanner --format json -r ${target}`);
   debug("osv-scanner", out);
@@ -150,6 +173,7 @@ function osvScanner() {
   try {
     const data = JSON.parse(out);
     const results = data.results || [];
+    const before = findings.length;
 
     for (const r of results) {
       for (const p of r.packages || []) {
@@ -172,11 +196,15 @@ function osvScanner() {
         }
       }
     }
-  } catch {}
+
+    toolStatus.osv = findings.length > before ? "ran" : "clean";
+  } catch {
+    toolStatus.osv = "error";
+  }
 }
 
 function trivy() {
-  if (!toolExists("trivy")) return;
+  if (!toolExists("trivy")) { toolStatus.trivy = "skipped"; return; }
 
   const out = run(
     `trivy fs --quiet --format json --scanners misconfig,license ${target}`
@@ -186,6 +214,7 @@ function trivy() {
   try {
     const data = JSON.parse(out);
     const results = data.Results || [];
+    const before = findings.length;
 
     for (const r of results) {
       for (const m of r.Misconfigurations || []) {
@@ -210,18 +239,36 @@ function trivy() {
         });
       }
     }
-  } catch {}
+
+    toolStatus.trivy = findings.length > before ? "ran" : "clean";
+  } catch {
+    toolStatus.trivy = "error";
+  }
 }
 
 function npmAudit() {
-  if (!fs.existsSync(`${target}/package.json`)) return;
+  if (!fs.existsSync(`${target}/package.json`)) { toolStatus.npm = "skipped"; return; }
 
   const out = run(`cd ${target} && npm audit --json`);
   debug("npm audit", out);
 
+  const jsonStart = out.indexOf("{");
+  const jsonEnd = out.lastIndexOf("}");
+  const cleanOut =
+    jsonStart >= 0 && jsonEnd > jsonStart
+      ? out.slice(jsonStart, jsonEnd + 1)
+      : out;
+
   try {
-    const json = JSON.parse(out);
+    const json = JSON.parse(cleanOut);
+
+    if (json.error) {
+      toolStatus.npm = json.error.code === "ENOLOCK" ? "skipped" : "error";
+      return;
+    }
+
     const vulns = json.vulnerabilities || {};
+    const before = findings.length;
 
     for (const k in vulns) {
       const v = vulns[k];
@@ -240,7 +287,11 @@ function npmAudit() {
         fixable: true
       });
     }
-  } catch {}
+
+    toolStatus.npm = findings.length > before ? "ran" : "clean";
+  } catch {
+    toolStatus.npm = "error";
+  }
 }
 
 /* -----------------------------
@@ -406,18 +457,90 @@ function renderHtml(rep, repoName) {
   const e = escapeHtml;
   const surfaces = rep.intelligence.attackSurface || [];
   const sum = rep.summary;
+  const tools = rep.tools || {};
 
-  const findingsRows = rep.findings
+  const TOOL_ORDER = ["semgrep", "gitleaks", "npm", "osv", "trivy"];
+  const TOOL_LABEL = {
+    semgrep: "Semgrep",
+    gitleaks: "Gitleaks",
+    npm: "npm audit",
+    osv: "osv-scanner",
+    trivy: "Trivy"
+  };
+
+  const byTool = Object.fromEntries(TOOL_ORDER.map(t => [t, []]));
+  for (const f of rep.findings) if (byTool[f.tool]) byTool[f.tool].push(f);
+
+  const statusBadge = st => {
+    const map = {
+      ran: { text: "found issues", color: "#ff9500" },
+      clean: { text: "clean", color: "#34c759" },
+      skipped: { text: "not installed", color: "#8e8e93" },
+      error: { text: "error parsing output", color: "#ff3b30" },
+      pending: { text: "not run", color: "#8e8e93" }
+    };
+    const s = map[st] || map.pending;
+    return `<span class="tool-badge" style="background:${s.color}">${e(s.text)}</span>`;
+  };
+
+  const rowsFor = list =>
+    list
+      .map(
+        f => `
+        <tr>
+          <td><span class="pill" style="background:${sevColor(f.severity)}">${e(f.severity)}</span></td>
+          <td>${e(f.type)}</td>
+          <td class="mono">${e(f.signature)}</td>
+          <td>${e(f.message)}</td>
+          <td>${f.fixable ? "yes" : "no"}</td>
+        </tr>`
+      )
+      .join("");
+
+  const panelBody = tool => {
+    const st = tools[tool] || "pending";
+    const list = byTool[tool] || [];
+
+    if (st === "skipped") {
+      return `<div class="empty">Tool not installed. Install it and re-run to include ${e(TOOL_LABEL[tool])} in the scan.</div>`;
+    }
+    if (st === "error") {
+      return `<div class="empty">${e(TOOL_LABEL[tool])} ran but output could not be parsed. Re-run with <code>--debug</code> to inspect.</div>`;
+    }
+    if (st === "pending") {
+      return `<div class="empty">${e(TOOL_LABEL[tool])} did not run (target not applicable).</div>`;
+    }
+    if (!list.length) {
+      return `<div class="empty success">${e(TOOL_LABEL[tool])} scanned the target and found no issues.</div>`;
+    }
+    return `<table>
+      <thead><tr><th>Severity</th><th>Type</th><th>Signature</th><th>Message</th><th>Fixable</th></tr></thead>
+      <tbody>${rowsFor(list)}</tbody>
+    </table>`;
+  };
+
+  const firstTool = TOOL_ORDER[0];
+  const tabInputs = TOOL_ORDER
     .map(
-      f => `
-      <tr>
-        <td><span class="pill" style="background:${sevColor(f.severity)}">${e(f.severity)}</span></td>
-        <td>${e(f.tool)}</td>
-        <td>${e(f.type)}</td>
-        <td class="mono">${e(f.signature)}</td>
-        <td>${e(f.message)}</td>
-        <td>${f.fixable ? "yes" : "no"}</td>
-      </tr>`
+      t => `<input type="radio" name="tabs" id="tab-${t}" class="tab-radio"${t === firstTool ? " checked" : ""}>`
+    )
+    .join("");
+
+  const tabLabels = TOOL_ORDER
+    .map(t => {
+      const count = byTool[t].length;
+      const st = tools[t] || "pending";
+      return `<label for="tab-${t}" class="tab-label">
+        <span>${e(TOOL_LABEL[t])}</span>
+        ${count ? `<span class="tab-count">${count}</span>` : ""}
+        ${statusBadge(st)}
+      </label>`;
+    })
+    .join("");
+
+  const tabPanels = TOOL_ORDER
+    .map(
+      t => `<div class="tab-panel" data-tool="${t}">${panelBody(t)}</div>`
     )
     .join("");
 
@@ -500,6 +623,46 @@ function renderHtml(rep, repoName) {
   ul { margin: 8px 0; padding-left: 18px; }
   li { margin: 4px 0; }
   code.cmd { display: inline-block; padding: 2px 6px; margin-left: 8px; background: #1f1f1f; border-radius: 4px; font-size: 11px; }
+  .empty.success { color: #34c759; }
+
+  .tabs { margin-top: 8px; }
+  .tab-radio { position: absolute; opacity: 0; pointer-events: none; }
+  .tab-bar { display: flex; flex-wrap: wrap; gap: 4px; border-bottom: 1px solid #1f1f1f; margin-bottom: 16px; }
+  .tab-label {
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 10px 14px; cursor: pointer; color: #8e8e93;
+    border-bottom: 2px solid transparent; margin-bottom: -1px;
+    font-size: 13px; font-weight: 500;
+    transition: color .15s, border-color .15s;
+  }
+  .tab-label:hover { color: #e5e5e7; }
+  .tab-count {
+    display: inline-block; min-width: 20px; padding: 1px 6px;
+    background: #1f1f1f; border-radius: 10px; font-size: 11px;
+    color: #e5e5e7; text-align: center;
+  }
+  .tool-badge {
+    display: inline-block; padding: 2px 8px; border-radius: 999px;
+    font-size: 10px; font-weight: 600; color: #0a0a0a;
+    text-transform: uppercase; letter-spacing: 0.04em;
+  }
+  .tab-panels .tab-panel { display: none; }
+
+  #tab-semgrep:checked  ~ .tab-bar label[for="tab-semgrep"],
+  #tab-gitleaks:checked ~ .tab-bar label[for="tab-gitleaks"],
+  #tab-npm:checked      ~ .tab-bar label[for="tab-npm"],
+  #tab-osv:checked      ~ .tab-bar label[for="tab-osv"],
+  #tab-trivy:checked    ~ .tab-bar label[for="tab-trivy"] {
+    color: #e5e5e7; border-bottom-color: #e5e5e7;
+  }
+  #tab-semgrep:checked  ~ .tab-panels .tab-panel[data-tool="semgrep"],
+  #tab-gitleaks:checked ~ .tab-panels .tab-panel[data-tool="gitleaks"],
+  #tab-npm:checked      ~ .tab-panels .tab-panel[data-tool="npm"],
+  #tab-osv:checked      ~ .tab-panels .tab-panel[data-tool="osv"],
+  #tab-trivy:checked    ~ .tab-panels .tab-panel[data-tool="trivy"] {
+    display: block;
+  }
+
   footer { margin-top: 48px; padding-top: 16px; border-top: 1px solid #1f1f1f; color: #8e8e93; font-size: 12px; text-align: center; }
   .empty { color: #8e8e93; font-style: italic; padding: 12px 0; }
 </style>
@@ -529,15 +692,12 @@ function renderHtml(rep, repoName) {
   <h2>Attack surface</h2>
   <div>${surfaceChips || '<span class="empty">Nothing detected.</span>'}</div>
 
-  <h2>Findings (${rep.findings.length})</h2>
-  ${
-    rep.findings.length
-      ? `<table>
-    <thead><tr><th>Severity</th><th>Tool</th><th>Type</th><th>Signature</th><th>Message</th><th>Fixable</th></tr></thead>
-    <tbody>${findingsRows}</tbody>
-  </table>`
-      : '<div class="empty">Clean. No findings.</div>'
-  }
+  <h2>Findings by tool (${rep.findings.length} total)</h2>
+  <div class="tabs">
+    ${tabInputs}
+    <div class="tab-bar">${tabLabels}</div>
+    <div class="tab-panels">${tabPanels}</div>
+  </div>
 
   <h2>Reasoning</h2>
   ${reasoningCards ? `<div class="cards">${reasoningCards}</div>` : '<div class="empty">No reasoning produced.</div>'}
@@ -602,6 +762,11 @@ console.log("\n--------------------------------");
 console.log("STATUS:", report.status);
 console.log("RISK SCORE:", report.intelligence.riskScore);
 console.log("CONFIDENCE:", report.remediation.confidence + "%");
+
+console.log("\nSCANNER STATUS:");
+for (const t of TOOLS) {
+  console.log(`- ${t.padEnd(10)} ${toolStatus[t]}`);
+}
 
 console.log("\nTOP ISSUES:");
 findings.slice(0, 5).forEach(f =>
