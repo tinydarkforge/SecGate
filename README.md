@@ -42,5 +42,5 @@ It combines:
 
 ### 1. Clone repository
 ```bash
-git clone https://github.com/your-org/secgate.git
-cd secgate
+git clone https://github.com/tinydarkforge/SecGate.git
+cd SecGate
