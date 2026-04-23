@@ -179,7 +179,9 @@ function analyze(findings) {
         ? 10
         : f.severity === "HIGH"
         ? 6
-        : 3;
+        : f.severity === "MEDIUM"
+        ? 3
+        : 1;
 
     risk += weight;
     surface.add(f.type);
