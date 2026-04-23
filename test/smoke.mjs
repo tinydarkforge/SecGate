@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { execFileSync } from "child_process";
+import { spawnSync } from "child_process";
 import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
@@ -13,21 +13,18 @@ let passed = 0;
 let failed = 0;
 
 function run(args, opts = {}) {
-  try {
-    const stdout = execFileSync("node", [bin, ...args], {
-      encoding: "utf-8",
-      stdio: "pipe",
-      cwd: opts.cwd || repoRoot,
-      ...opts
-    });
-    return { code: 0, stdout, stderr: "" };
-  } catch (e) {
-    return {
-      code: e.status ?? 1,
-      stdout: (e.stdout || "").toString(),
-      stderr: (e.stderr || "").toString()
-    };
-  }
+  const res = spawnSync("node", [bin, ...args], {
+    encoding: "utf-8",
+    cwd: opts.cwd || repoRoot,
+    env: opts.env || process.env,
+    input: opts.input,
+    maxBuffer: 64 * 1024 * 1024
+  });
+  return {
+    code: res.status ?? 1,
+    stdout: (res.stdout || "").toString(),
+    stderr: (res.stderr || "").toString()
+  };
 }
 
 function test(name, fn) {
@@ -135,6 +132,121 @@ test("HTML report contains all 5 tool tabs", () => {
   }
   fs.unlinkSync(path.join(fixture, "secgate-v7-report.json"));
   fs.unlinkSync(path.join(fixture, "clean.html"));
+});
+
+test("scan from /tmp writes no report files to /tmp", () => {
+  const fixture = path.join(repoRoot, "test/fixtures/clean");
+  const tmpBefore = fs.readdirSync("/tmp");
+  const r = run([fixture], { cwd: "/tmp" });
+  assertEq(r.code, 0, "exit");
+  const tmpAfter = fs.readdirSync("/tmp");
+  const added = tmpAfter.filter(n => !tmpBefore.includes(n));
+  const leaked = added.filter(n => /secgate|\.html$/.test(n));
+  if (leaked.length) {
+    throw new Error(`report files leaked to /tmp: ${leaked.join(",")}`);
+  }
+  // Files must be in the fixture (target), not /tmp.
+  const json = path.join(fixture, "secgate-v7-report.json");
+  const html = path.join(fixture, "clean.html");
+  if (!fs.existsSync(json)) throw new Error(`missing ${json}`);
+  if (!fs.existsSync(html)) throw new Error(`missing ${html}`);
+  fs.unlinkSync(json);
+  fs.unlinkSync(html);
+  // cwd-mismatch warning must fire.
+  assertContains(r.stderr, "differs from target", "cwd warning");
+});
+
+test("--apply on malicious postinstall does NOT execute lifecycle scripts", () => {
+  const fixture = path.join(repoRoot, "test/fixtures/malicious-postinstall");
+  const pwned = "/tmp/secgate-pwned";
+  if (fs.existsSync(pwned)) fs.unlinkSync(pwned);
+
+  const r = run([fixture, "--apply"], {
+    cwd: fixture,
+    env: { ...process.env, SECGATE_CONFIRM_APPLY: "1" }
+  });
+
+  // Whatever the exit status (scan may FAIL on HIGH findings), the postinstall
+  // script must never have run.
+  if (fs.existsSync(pwned)) {
+    const contents = fs.readFileSync(pwned, "utf-8");
+    fs.unlinkSync(pwned);
+    throw new Error(`postinstall executed — /tmp/secgate-pwned: ${contents}`);
+  }
+
+  // Audit log must record the apply attempt.
+  const json = path.join(fixture, "secgate-v7-report.json");
+  if (fs.existsSync(json)) {
+    const rep = JSON.parse(fs.readFileSync(json, "utf-8"));
+    if (!Array.isArray(rep.auditLog)) {
+      throw new Error("missing auditLog in report");
+    }
+    const hasApplyStart = rep.auditLog.some(a => a.event === "apply_start");
+    if (!hasApplyStart) {
+      throw new Error("auditLog missing apply_start entry");
+    }
+    fs.unlinkSync(json);
+  }
+  const html = path.join(fixture, "malicious-postinstall.html");
+  if (fs.existsSync(html)) fs.unlinkSync(html);
+
+  // stderr must contain audit trail entries.
+  assertContains(r.stderr, "[audit]", "stderr audit trail");
+});
+
+test("--apply refuses without confirmation (no TTY, no env)", () => {
+  const fixture = path.join(repoRoot, "test/fixtures/clean");
+  const env = { ...process.env };
+  delete env.SECGATE_CONFIRM_APPLY;
+  const r = run([fixture, "--apply"], { cwd: fixture, env });
+  assertEq(r.code, 2, "exit");
+  assertContains(r.stderr, "confirmation", "refusal stderr");
+  // Report files must not exist (run aborted pre-scan).
+  const json = path.join(fixture, "secgate-v7-report.json");
+  if (fs.existsSync(json)) fs.unlinkSync(json);
+  const html = path.join(fixture, "clean.html");
+  if (fs.existsSync(html)) fs.unlinkSync(html);
+});
+
+test("CI=true report JSON contains no absolute target path", () => {
+  const fixture = path.join(repoRoot, "test/fixtures/clean");
+  const r = run([fixture], {
+    cwd: fixture,
+    env: { ...process.env, CI: "true" }
+  });
+  assertEq(r.code, 0, "exit");
+  const json = path.join(fixture, "secgate-v7-report.json");
+  const raw = fs.readFileSync(json, "utf-8");
+  const rep = JSON.parse(raw);
+  assertEq(rep.target, "clean", "target relativized");
+  if (raw.includes(fixture)) {
+    throw new Error(`absolute fixture path leaked into JSON: ${fixture}`);
+  }
+  // Accept /tmp (POSIX root-like) but reject the fixture's absolute root.
+  if (/"\/Users\/[^"]+"/.test(raw) || /"\/home\/[^"]+"/.test(raw)) {
+    throw new Error("absolute user-home path leaked into JSON");
+  }
+  fs.unlinkSync(json);
+  fs.unlinkSync(path.join(fixture, "clean.html"));
+});
+
+test("--output-dir writes reports to the given directory", () => {
+  const fixture = path.join(repoRoot, "test/fixtures/clean");
+  const out = fs.mkdtempSync("/tmp/secgate-out-");
+  const r = run([fixture, "--output-dir", out], { cwd: fixture });
+  assertEq(r.code, 0, "exit");
+  const json = path.join(out, "secgate-v7-report.json");
+  const html = path.join(out, "clean.html");
+  if (!fs.existsSync(json)) throw new Error(`missing ${json}`);
+  if (!fs.existsSync(html)) throw new Error(`missing ${html}`);
+  fs.unlinkSync(json);
+  fs.unlinkSync(html);
+  fs.rmdirSync(out);
+  // Fixture dir must NOT contain the report.
+  if (fs.existsSync(path.join(fixture, "secgate-v7-report.json"))) {
+    fs.unlinkSync(path.join(fixture, "secgate-v7-report.json"));
+    throw new Error("report also written to target when --output-dir given");
+  }
 });
 
 console.log("-------------------");

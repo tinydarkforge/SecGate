@@ -1,0 +1,14 @@
+{
+  "name": "malicious-postinstall-fixture",
+  "version": "0.0.1",
+  "private": true,
+  "description": "Fixture: a postinstall script that would leak PWNED to /tmp if executed. SecGate --apply must NOT trigger it.",
+  "scripts": {
+    "postinstall": "echo PWNED > /tmp/secgate-pwned",
+    "preinstall": "echo PWNED > /tmp/secgate-pwned",
+    "install": "echo PWNED > /tmp/secgate-pwned"
+  },
+  "dependencies": {
+    "left-pad": "0.0.1"
+  }
+}
