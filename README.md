@@ -1,10 +1,10 @@
 # SecGate
 
-Open-source security scanning and remediation CLI for CI/CD pipelines.
+Tiny open-source security gate for CI/CD pipelines.
 
-Orchestrates [Semgrep](https://semgrep.dev), [Gitleaks](https://github.com/gitleaks/gitleaks), [osv-scanner](https://github.com/google/osv-scanner), [Trivy](https://github.com/aquasecurity/trivy), and `npm audit` — aggregates findings, scores risk, generates fix plans, renders a premium HTML report, and blocks pipelines on critical issues.
+Orchestrates [Semgrep](https://semgrep.dev), [Gitleaks](https://github.com/gitleaks/gitleaks), [osv-scanner](https://github.com/google/osv-scanner), [Trivy](https://github.com/aquasecurity/trivy), and `npm audit` — aggregates findings, scores risk, generates fix plans, renders a premium HTML report with per-scanner tabs, and blocks pipelines on critical issues.
 
-> **Status:** Working prototype. Not production-ready for enterprise use.
+> **Status:** Early release. Published with [npm provenance](https://docs.npmjs.com/generating-provenance-statements). See [SECURITY.md](SECURITY.md) to report vulnerabilities.
 
 ---
 
@@ -55,14 +55,24 @@ pip install semgrep
 
 ## Installation
 
+### From npm (recommended)
+
+```bash
+npm install -g @tinydarkforge/secgate
+```
+
+Or one-shot via `npx` (no install):
+
+```bash
+npx @tinydarkforge/secgate .
+```
+
+### From source
+
 ```bash
 git clone https://github.com/tinydarkforge/SecGate.git
 cd SecGate
 npm install
-```
-
-Add to PATH (optional):
-```bash
 chmod +x secgate.js
 sudo ln -sf "$(pwd)/secgate.js" /usr/local/bin/secgate
 ```
@@ -73,17 +83,28 @@ sudo ln -sf "$(pwd)/secgate.js" /usr/local/bin/secgate
 
 ```bash
 # Scan current directory (dry-run, default)
-node secgate.js .
+secgate .
 
 # Scan with auto-remediation
-node secgate.js . --apply
+secgate . --apply
 
 # Scan with debug output
-node secgate.js . --debug
+secgate . --debug
 
 # Scan specific path
-node secgate.js /path/to/project
+secgate /path/to/project
+
+# Show version
+secgate --version
+
+# Show help
+secgate --help
 ```
+
+Exit codes:
+- `0` — PASS (no CRITICAL or HIGH findings)
+- `1` — FAIL (CRITICAL or HIGH findings present)
+- `2` — invalid target or CLI error
 
 ---
 
@@ -92,33 +113,40 @@ node secgate.js /path/to/project
 ```yaml
 # .github/workflows/secgate.yml
 - name: Run SecGate
-  run: node secgate.js .
+  run: npx @tinydarkforge/secgate .
   # exits 1 on CRITICAL or HIGH findings — blocks the pipeline
 ```
 
 For non-blocking (report only):
 ```yaml
 - name: Run SecGate
-  run: node secgate.js . || true
+  run: npx @tinydarkforge/secgate . || true
 
 - name: Upload report
   uses: actions/upload-artifact@v4
   with:
     name: secgate-report
-    path: secgate-v7-report.json
+    path: |
+      secgate-v7-report.json
+      *.html
 ```
 
 ---
 
-## Report Schema
+## Report output
 
-Output written to `secgate-v7-report.json` after each run:
+Each run writes two files:
+
+- **`secgate-v7-report.json`** — machine-readable report (schema below).
+- **`<repo-name>.html`** — premium self-contained HTML report with per-scanner tabs, dark-mode UI, zero external assets. Filename is derived from the target directory name.
+
+### JSON schema
 
 ```json
 {
-  "version": "7.0",
+  "version": "0.1.0",
   "timestamp": "ISO 8601",
-  "target": ".",
+  "target": "/absolute/path",
   "mode": "dry-run | apply",
   "status": "PASS | FAIL",
   "summary": {
@@ -127,10 +155,17 @@ Output written to `secgate-v7-report.json` after each run:
     "medium": 0,
     "low": 0
   },
+  "tools": {
+    "semgrep":  "ran | clean | skipped | error | pending",
+    "gitleaks": "ran | clean | skipped | error | pending",
+    "npm":      "ran | clean | skipped | error | pending",
+    "osv":      "ran | clean | skipped | error | pending",
+    "trivy":    "ran | clean | skipped | error | pending"
+  },
   "findings": [
     {
-      "tool": "gitleaks | semgrep | npm",
-      "type": "secret | code | dependency",
+      "tool": "gitleaks | semgrep | npm | osv | trivy",
+      "type": "secret | code | dependency | iac | license",
       "severity": "CRITICAL | HIGH | MEDIUM | LOW",
       "signature": "rule or package ID",
       "message": "description",
@@ -139,12 +174,19 @@ Output written to `secgate-v7-report.json` after each run:
   ],
   "intelligence": {
     "riskScore": 0,
-    "attackSurface": ["secret", "dependency"],
+    "attackSurface": ["secret", "dependency", "iac", "license", "code"],
     "reasoning": [{ "issue": "...", "why": "..." }],
     "recommendations": ["..."]
   },
   "remediation": {
-    "plan": [{ "issue": "...", "patch": { "action": "...", "cmd": null } }],
+    "plan": [{
+      "issue": "...",
+      "patch": {
+        "action": "...",
+        "cmd": "display string or null",
+        "exec": { "binary": "npm", "args": ["audit", "fix"], "cwd": "..." }
+      }
+    }],
     "stagedChanges": [],
     "executed": [],
     "blocked": [],
@@ -152,6 +194,14 @@ Output written to `secgate-v7-report.json` after each run:
   }
 }
 ```
+
+### Tool states
+
+- **`ran`** — tool executed, findings present.
+- **`clean`** — tool executed, no findings.
+- **`skipped`** — tool not installed, or target not applicable (no `package.json` for npm audit, no lockfile, etc.).
+- **`error`** — tool produced output that could not be parsed (re-run with `--debug` to inspect).
+- **`pending`** — tool did not run (should not appear in final reports).
 
 ---
 
