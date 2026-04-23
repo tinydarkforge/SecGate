@@ -6,32 +6,116 @@ If you discover a security vulnerability in SecGate, please report it privately.
 
 **Do not open a public GitHub issue for security reports.**
 
-Preferred channel:
-- Open a [private security advisory](https://github.com/tinydarkforge/SecGate/security/advisories/new) on GitHub.
+### Preferred channels
 
-Include:
+1. **GitHub Security Advisory** — open a [private security advisory](https://github.com/tinydarkforge/SecGate/security/advisories/new). This is the fastest route and is tracked via the GitHub Security Advisories (GHSA) workflow.
+2. **Encrypted email** — for reporters who cannot use GitHub advisories, email `security@tinydarkforge.dev` encrypted with our PGP key (below).
+
+### PGP Key
+
+```
+Fingerprint: <insert fingerprint>
+Key ID:      <insert key ID>
+Expires:     <insert expiry>
+```
+
+**Status:** key generation is pending (see issue #34 acceptance criteria). Instructions for the maintainer:
+
+```bash
+# Generate a new key (RSA 4096, 2-year expiry)
+gpg --full-generate-key
+
+# Export public key
+gpg --armor --export security@tinydarkforge.dev > pgp-public.asc
+
+# Get fingerprint
+gpg --fingerprint security@tinydarkforge.dev
+
+# Publish to keyserver
+gpg --send-keys <KEY_ID>
+```
+
+Once generated, paste the fingerprint above and commit `pgp-public.asc` to the repo root.
+
+### Include in your report
+
 - A description of the vulnerability and its impact
-- Steps to reproduce
+- Steps to reproduce (minimal PoC preferred)
 - Affected version(s)
 - Any suggested remediation
+- Your disclosure timeline preference
 
-We will acknowledge receipt within 72 hours and aim to provide an initial assessment within 7 days.
+---
+
+## Response SLA
+
+We commit to the following response times from first triage acknowledgment:
+
+| Severity | Acknowledge | Initial assessment | Fix / mitigation target |
+|----------|:-----------:|:------------------:|:-----------------------:|
+| **Critical** | 24h | 48h | **48h** |
+| **High**     | 48h | 72h | **7 days** |
+| **Medium**   | 72h | 7d  | **30 days** |
+| **Low**      | 7d  | 14d | **90 days** |
+
+Severity follows CVSS v3.1. If we disagree with your severity assessment, we will state why in the initial response and propose a revised rating.
+
+---
+
+## Coordinated Disclosure Timeline
+
+We follow a **90-day coordinated disclosure** policy by default:
+
+1. **Day 0** — reporter files private advisory.
+2. **Within SLA** — we acknowledge and begin triage.
+3. **During fix window** — we work with reporter on patch, credit, and advisory text.
+4. **Public disclosure** — after patch is released, or at day 90, whichever comes first.
+5. **Extension** — we may request extension for complex fixes; reporter may decline.
+
+If a vulnerability is being actively exploited, we may compress this timeline and coordinate expedited disclosure.
+
+CVE assignment is handled via the GHSA workflow when GitHub is our CNA.
+
+---
+
+## GHSA Process
+
+We use GitHub Security Advisories as the primary tracking mechanism:
+
+1. Reporter files advisory → triage by maintainers.
+2. Maintainers request CVE from GitHub CNA when confirmed.
+3. Private fork used for patch development.
+4. Reporter credited in advisory unless anonymity is requested.
+5. Advisory published simultaneously with patch release.
+6. Notification pushed to npm advisory DB via provenance metadata.
+
+---
 
 ## Supported Versions
 
-Only the latest `main` branch receives security fixes at this stage.
+Only the latest `main` branch receives security fixes at this stage. Once v1.0.0 ships, we will support the current minor and the previous minor (N and N-1).
+
+---
 
 ## Scope
 
 SecGate is a security scanning engine itself. Please report:
-- Bypasses of the scanning/remediation logic
+
+- Bypasses of the scanning / remediation logic
 - Unsafe handling of scan artifacts, secrets, or intermediate files
 - Supply-chain concerns in declared dependencies
 - Any path traversal, command injection, or privilege escalation paths
+- Information disclosure via reports or logs
 
-Out of scope:
-- Findings in third-party scanners invoked by SecGate (report upstream)
+**Out of scope:**
+
+- Findings in third-party scanners invoked by SecGate (report upstream to Semgrep / Gitleaks / osv-scanner / Trivy / npm)
 - Misconfiguration in end-user CI environments
+- Denial of service caused by maliciously crafted scanned repos against upstream scanners (upstream concern)
+
+See [`docs/threat-model.md`](docs/threat-model.md) for the full STRIDE model, trust boundaries, and known mitigations.
+
+---
 
 ## Supply-chain trust
 
@@ -126,3 +210,21 @@ uploaded.
 
 If verification fails for an artifact you downloaded, **do not install it** —
 open a private security advisory immediately.
+
+---
+
+## Safe Harbor
+
+Good-faith security research following this policy will not be subject to legal action by TinyDarkForge. Please:
+
+- Do not access, modify, or exfiltrate data beyond what is needed to demonstrate the vulnerability.
+- Do not publicly disclose before coordinated disclosure timeline ends.
+- Do not test against production systems of SecGate users (test against your own installs).
+
+---
+
+## Hall of Fame
+
+Security researchers who report valid vulnerabilities will be credited here (with consent) after public disclosure.
+
+_No reports received yet._

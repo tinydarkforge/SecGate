@@ -227,6 +227,33 @@ Every finding is normalized to one of 5 tiers at the `addFinding()` ingress:
 
 ---
 
+## How SecGate compares
+
+Honest side-by-side with the tools SecGate is weighed against. Full matrix in [`docs/comparison.md`](docs/comparison.md).
+
+| | SecGate | Snyk (free) | Trivy alone | Semgrep OSS | Aikido (free) |
+|--|:-:|:-:|:-:|:-:|:-:|
+| Bundled orchestration (5 scanners, 1 CLI) | **yes** | — | no | no | yes (SaaS) |
+| No account / no telemetry | **yes** | no | yes | yes | no |
+| Self-hosted / air-gapped | **yes** | no | yes | yes | no |
+| Free for commercial use | **yes** | limited | yes | yes | free tier |
+| Single HTML report across scanners | **yes** | dashboard | no | no | dashboard |
+
+**SecGate's niche:** zero-config bundled orchestration with no SaaS, no account, no telemetry. If you need SaaS-grade triage, buy Snyk or Aikido. If you need a CI gate that blocks critical issues without a sales call, use SecGate.
+
+---
+
+## Documentation
+
+- [`docs/threat-model.md`](docs/threat-model.md) — STRIDE analysis, trust boundaries, mitigations
+- [`docs/coverage.md`](docs/coverage.md) — scanner-to-category matrix, explicit gaps
+- [`docs/tuning.md`](docs/tuning.md) — thresholds, baselines, suppression, CI vs local defaults
+- [`docs/comparison.md`](docs/comparison.md) — full feature matrix vs Snyk / Trivy / Semgrep / Aikido
+- [`docs/adr/`](docs/adr/) — architecture decision records (scanner stack, auto-fix scope, dry-run default, report format, no-API stance)
+- [`SECURITY.md`](SECURITY.md) — vulnerability reporting, SLA, coordinated disclosure
+
+---
+
 ## Contributing
 
 See [CONTRIBUTING.md](CONTRIBUTING.md). Report vulnerabilities per [SECURITY.md](SECURITY.md).
