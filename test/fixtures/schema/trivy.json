@@ -1,0 +1,24 @@
+{
+  "Results": [
+    {
+      "Target": "Dockerfile",
+      "Misconfigurations": [
+        {
+          "ID": "DS002",
+          "Title": "Image user should not be root",
+          "Description": "Running as root",
+          "Severity": "HIGH",
+          "CauseMetadata": { "StartLine": 5, "EndLine": 5 }
+        }
+      ],
+      "Licenses": [
+        {
+          "Name": "GPL-3.0",
+          "PkgName": "some-pkg",
+          "Severity": "MEDIUM",
+          "FilePath": "vendor/some-pkg/LICENSE"
+        }
+      ]
+    }
+  ]
+}

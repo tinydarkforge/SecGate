@@ -1,0 +1,17 @@
+[
+  {
+    "RuleID": "aws-access-key",
+    "Description": "AWS Access Key",
+    "File": "src/config/aws.js",
+    "StartLine": 42,
+    "EndLine": 42,
+    "Match": "AKIAIOSFODNN7EXAMPLE"
+  },
+  {
+    "RuleID": "generic-api-key",
+    "Description": "Generic API Key",
+    "File": "lib/client.ts",
+    "StartLine": 17,
+    "EndLine": 17
+  }
+]

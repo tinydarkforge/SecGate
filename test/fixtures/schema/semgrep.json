@@ -1,0 +1,40 @@
+{
+  "results": [
+    {
+      "check_id": "javascript.lang.security.audit.sqli.node-mysql-sqli",
+      "path": "src/db.js",
+      "start": { "line": 23, "col": 5 },
+      "end": { "line": 25, "col": 20 },
+      "extra": {
+        "severity": "ERROR",
+        "message": "Detected SQL injection",
+        "metadata": { "category": "security", "cwe": ["CWE-89: SQL Injection"] }
+      }
+    },
+    {
+      "check_id": "generic.secrets.security.detected-hardcoded-password",
+      "path": "app/settings.py",
+      "start": { "line": 8, "col": 1 },
+      "end": { "line": 8, "col": 40 },
+      "extra": {
+        "severity": "WARNING",
+        "message": "Hardcoded password detected",
+        "metadata": {
+          "category": "security",
+          "cwe": ["CWE-798: Use of Hard-coded Credentials"]
+        }
+      }
+    },
+    {
+      "check_id": "style.lang.best-practice.unused-var",
+      "path": "src/util.ts",
+      "start": { "line": 100, "col": 3 },
+      "end": { "line": 100, "col": 15 },
+      "extra": {
+        "severity": "INFO",
+        "message": "Unused variable",
+        "metadata": { "category": "best-practice" }
+      }
+    }
+  ]
+}

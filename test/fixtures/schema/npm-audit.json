@@ -1,0 +1,19 @@
+{
+  "vulnerabilities": {
+    "lodash": {
+      "name": "lodash",
+      "severity": "high",
+      "title": "Prototype pollution"
+    },
+    "some-pkg": {
+      "name": "some-pkg",
+      "severity": "moderate",
+      "title": "ReDoS"
+    },
+    "weird-pkg": {
+      "name": "weird-pkg",
+      "severity": "frobnicated",
+      "title": "Unknown severity upstream"
+    }
+  }
+}

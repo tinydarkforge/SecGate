@@ -88,7 +88,7 @@ const report = {
   mode: APPLY ? "apply" : "dry-run",
   status: "PASS",
 
-  summary: { critical: 0, high: 0, medium: 0, low: 0 },
+  summary: { critical: 0, high: 0, medium: 0, low: 0, unknown: 0 },
 
   findings: [],
   tools: toolStatus,
@@ -142,14 +142,40 @@ function debug(label, data) {
   }
 }
 
+const SEVERITY_TIERS = ["CRITICAL", "HIGH", "MEDIUM", "LOW", "UNKNOWN"];
+
+function normalizeSeverity(raw) {
+  if (raw == null) return "UNKNOWN";
+  const v = String(raw).trim().toUpperCase();
+  if (v === "MODERATE") return "MEDIUM";
+  if (v === "WARNING") return "MEDIUM";
+  if (v === "ERROR") return "HIGH";
+  if (v === "INFO" || v === "NOTE" || v === "INFORMATIONAL") return "LOW";
+  if (v === "NEGLIGIBLE") return "LOW";
+  return SEVERITY_TIERS.includes(v) ? v : "UNKNOWN";
+}
+
 function addFinding(f) {
+  const severity = normalizeSeverity(f.severity);
+  const fixableBy =
+    f.fixableBy === "auto" || f.fixableBy === "manual"
+      ? f.fixableBy
+      : f.fixable
+      ? "manual"
+      : null;
+
   findings.push({
     tool: f.tool,
     type: f.type,
-    severity: f.severity,
+    severity,
     signature: f.signature,
     message: f.message,
-    fixable: f.fixable || false
+    file: f.file ?? null,
+    line: f.line ?? null,
+    col: f.col ?? null,
+    endLine: f.endLine ?? null,
+    fixable: fixableBy === "auto",
+    fixableBy
   });
 }
 
@@ -180,7 +206,10 @@ function gitleaks() {
         severity: "CRITICAL",
         signature: item.RuleID,
         message: item.Description,
-        fixable: false
+        file: item.File ?? null,
+        line: item.StartLine ?? null,
+        endLine: item.EndLine ?? null,
+        fixableBy: "manual"
       });
     });
 
@@ -188,6 +217,34 @@ function gitleaks() {
   } catch {
     toolStatus.gitleaks = "error";
   }
+}
+
+const SEMGREP_TIER = {
+  ERROR: "HIGH",
+  WARNING: "MEDIUM",
+  INFO: "LOW",
+  NOTE: "LOW"
+};
+
+const SECRET_RE = /(secret|credential|password|token|api[_-]?key|hardcoded)/i;
+const SECRET_CWES = ["CWE-798", "CWE-259", "CWE-321", "CWE-522", "CWE-798:"];
+
+function semgrepSeverity(r) {
+  const base = SEMGREP_TIER[(r.extra?.severity || "").toUpperCase()] || "MEDIUM";
+
+  const meta = r.extra?.metadata || {};
+  const category = String(meta.category || "").toLowerCase();
+  const checkId = String(r.check_id || "");
+  const cweArr = []
+    .concat(meta.cwe || [])
+    .concat(meta.owasp || [])
+    .map(x => String(x));
+
+  const isSecret =
+    (category === "security" && SECRET_RE.test(checkId + " " + JSON.stringify(meta))) ||
+    cweArr.some(c => SECRET_CWES.some(sc => c.toUpperCase().includes(sc)));
+
+  return isSecret ? "CRITICAL" : base;
 }
 
 function semgrep() {
@@ -208,10 +265,14 @@ function semgrep() {
       addFinding({
         tool: "semgrep",
         type: "code",
-        severity: r.extra.severity === "ERROR" ? "HIGH" : "MEDIUM",
+        severity: semgrepSeverity(r),
         signature: r.check_id,
-        message: r.extra.message,
-        fixable: true
+        message: r.extra?.message,
+        file: r.path ?? null,
+        line: r.start?.line ?? null,
+        col: r.start?.col ?? null,
+        endLine: r.end?.line ?? null,
+        fixableBy: "manual"
       });
     });
 
@@ -222,10 +283,61 @@ function semgrep() {
 }
 
 function severityFromCvss(score) {
+  if (!Number.isFinite(score) || score <= 0) return null;
   if (score >= 9) return "CRITICAL";
   if (score >= 7) return "HIGH";
   if (score >= 4) return "MEDIUM";
   return "LOW";
+}
+
+function cvssBaseScore(vec) {
+  // OSV stores either a bare vector ("CVSS:3.1/AV:N/...") with no score,
+  // or a prefixed score ("7.5/CVSS:3.1/..."). Strip the CVSS version prefix
+  // first so we don't mistake "3.1" for the base score.
+  const stripped = String(vec || "").replace(/CVSS:\d+\.\d+\/?/, "");
+  const m = stripped.match(/(?:^|[^\d])(\d+(?:\.\d+)?)/);
+  return m ? parseFloat(m[1]) : NaN;
+}
+
+function ratingFromText(txt) {
+  const s = String(txt || "").toUpperCase();
+  if (/\bCRITICAL\b/.test(s)) return "CRITICAL";
+  if (/\bHIGH\b/.test(s)) return "HIGH";
+  if (/\b(MODERATE|MEDIUM)\b/.test(s)) return "MEDIUM";
+  if (/\bLOW\b/.test(s)) return "LOW";
+  return null;
+}
+
+function osvSeverity(v) {
+  // 1. CVSS numeric score — prefer V3, fall back to V2.
+  const sev = v.severity || [];
+  let best = 0;
+  for (const s of sev) {
+    const t = (s.type || "").toUpperCase();
+    if (t === "CVSS_V3" || t === "CVSS_V2") {
+      const score = cvssBaseScore(s.score);
+      if (Number.isFinite(score)) best = Math.max(best, score);
+    }
+  }
+  const bySeverity = severityFromCvss(best);
+  if (bySeverity) return bySeverity;
+
+  // 2. database_specific.severity rating string
+  const dbSev = v.database_specific?.severity;
+  const byDb = ratingFromText(dbSev);
+  if (byDb) return byDb;
+
+  // 3. Any rating text on severity entries
+  for (const s of sev) {
+    const byText = ratingFromText(s.type) || ratingFromText(s.score);
+    if (byText) return byText;
+  }
+
+  // 4. Advisory body / details as last resort.
+  const byDetails = ratingFromText(v.details);
+  if (byDetails) return byDetails;
+
+  return "UNKNOWN";
 }
 
 function osvScanner() {
@@ -248,22 +360,22 @@ function osvScanner() {
     const before = findings.length;
 
     for (const r of results) {
+      const lockFile = r.source?.path || null;
+
       for (const p of r.packages || []) {
         const pkgName = p.package?.name || "unknown";
         const pkgEco = p.package?.ecosystem || "unknown";
 
         for (const v of p.vulnerabilities || []) {
-          const cvss = (v.severity || [])
-            .map(s => parseFloat(s.score?.match(/\d+\.\d+/)?.[0] || "0"))
-            .reduce((a, b) => Math.max(a, b), 0);
-
           addFinding({
             tool: "osv",
             type: "dependency",
-            severity: severityFromCvss(cvss),
+            severity: osvSeverity(v),
             signature: `${pkgEco}:${pkgName}@${v.id}`,
             message: v.summary || v.id,
-            fixable: true
+            file: lockFile || pkgName,
+            line: null,
+            fixableBy: "manual"
           });
         }
       }
@@ -299,10 +411,13 @@ function trivy() {
         addFinding({
           tool: "trivy",
           type: "iac",
-          severity: (m.Severity || "MEDIUM").toUpperCase(),
+          severity: m.Severity,
           signature: `${m.ID}:${r.Target}`,
           message: m.Title || m.Description || m.ID,
-          fixable: false
+          file: r.Target ?? null,
+          line: m.CauseMetadata?.StartLine ?? null,
+          endLine: m.CauseMetadata?.EndLine ?? null,
+          fixableBy: "manual"
         });
       }
 
@@ -310,10 +425,12 @@ function trivy() {
         addFinding({
           tool: "trivy",
           type: "license",
-          severity: (l.Severity || "LOW").toUpperCase(),
+          severity: l.Severity,
           signature: `${l.Name}:${l.PkgName || r.Target}`,
           message: `License ${l.Name} flagged for ${l.PkgName || r.Target}`,
-          fixable: false
+          file: l.FilePath || r.Target || null,
+          line: null,
+          fixableBy: "manual"
         });
       }
     }
@@ -348,21 +465,21 @@ function npmAudit() {
     const vulns = json.vulnerabilities || {};
     const before = findings.length;
 
+    const lockFile = ["package-lock.json", "npm-shrinkwrap.json", "yarn.lock"]
+      .find(f => fs.existsSync(path.join(target, f))) || "package.json";
+
     for (const k in vulns) {
       const v = vulns[k];
 
       addFinding({
         tool: "npm",
         type: "dependency",
-        severity:
-          v.severity === "critical"
-            ? "CRITICAL"
-            : v.severity === "high"
-            ? "HIGH"
-            : "MEDIUM",
+        severity: v.severity,
         signature: k,
-        message: v.title,
-        fixable: true
+        message: v.title || v.name || k,
+        file: lockFile,
+        line: null,
+        fixableBy: "auto"
       });
     }
 
@@ -390,7 +507,9 @@ function analyze(findings) {
         ? 6
         : f.severity === "MEDIUM"
         ? 3
-        : 1;
+        : f.severity === "LOW"
+        ? 1
+        : 0;
 
     risk += weight;
     surface.add(f.type);
@@ -528,8 +647,24 @@ function sevColor(sev) {
     CRITICAL: "#ff3b30",
     HIGH: "#ff9500",
     MEDIUM: "#ffcc00",
-    LOW: "#34c759"
+    LOW: "#34c759",
+    UNKNOWN: "#8e8e93"
   }[sev] || "#8e8e93";
+}
+
+function formatLocation(f) {
+  if (!f.file) return "";
+  const rel = f.file;
+  const lineFrag = f.line != null ? `:${f.line}` : "";
+  const colFrag = f.col != null ? `:${f.col}` : "";
+  const label = `${rel}${lineFrag}${colFrag}`;
+  // file:// link only when we have an absolute-looking path
+  const isAbs = rel.startsWith("/") || /^[a-zA-Z]:[\\/]/.test(rel);
+  if (isAbs) {
+    const href = `file://${rel}${f.line != null ? `#L${f.line}` : ""}`;
+    return `<a href="${escapeHtml(href)}" class="loc">${escapeHtml(label)}</a>`;
+  }
+  return `<span class="loc">${escapeHtml(label)}</span>`;
 }
 
 function renderHtml(rep, repoName) {
@@ -570,8 +705,9 @@ function renderHtml(rep, repoName) {
           <td><span class="pill" style="background:${sevColor(f.severity)}">${e(f.severity)}</span></td>
           <td>${e(f.type)}</td>
           <td class="mono">${e(f.signature)}</td>
+          <td class="mono">${formatLocation(f) || '<span class="empty">—</span>'}</td>
           <td>${e(f.message)}</td>
-          <td>${f.fixable ? "yes" : "no"}</td>
+          <td>${f.fixableBy === "auto" ? "auto" : f.fixableBy === "manual" ? "manual" : "no"}</td>
         </tr>`
       )
       .join("");
@@ -593,7 +729,7 @@ function renderHtml(rep, repoName) {
       return `<div class="empty success">${e(TOOL_LABEL[tool])} scanned the target and found no issues.</div>`;
     }
     return `<table>
-      <thead><tr><th>Severity</th><th>Type</th><th>Signature</th><th>Message</th><th>Fixable</th></tr></thead>
+      <thead><tr><th>Severity</th><th>Type</th><th>Signature</th><th>Location</th><th>Message</th><th>Fixable</th></tr></thead>
       <tbody>${rowsFor(list)}</tbody>
     </table>`;
   };
@@ -679,7 +815,9 @@ function renderHtml(rep, repoName) {
     padding: 6px 14px; border-radius: 999px; font-weight: 600; font-size: 12px;
     color: #0a0a0a;
   }
-  .kpis { display: grid; grid-template-columns: repeat(6, 1fr); gap: 12px; margin: 24px 0; }
+  .kpis { display: grid; grid-template-columns: repeat(7, 1fr); gap: 12px; margin: 24px 0; }
+  .loc { color: #9ad3ff; text-decoration: none; }
+  .loc:hover { text-decoration: underline; }
   .kpi {
     background: #141414; border: 1px solid #1f1f1f; border-radius: 12px;
     padding: 16px; text-align: center;
@@ -766,6 +904,7 @@ function renderHtml(rep, repoName) {
     <div class="kpi"><div class="label">High</div><div class="value" style="color:${sevColor("HIGH")}">${e(sum.high)}</div></div>
     <div class="kpi"><div class="label">Medium</div><div class="value" style="color:${sevColor("MEDIUM")}">${e(sum.medium)}</div></div>
     <div class="kpi"><div class="label">Low</div><div class="value" style="color:${sevColor("LOW")}">${e(sum.low)}</div></div>
+    <div class="kpi"><div class="label">Unknown</div><div class="value" style="color:${sevColor("UNKNOWN")}">${e(sum.unknown || 0)}</div></div>
   </div>
 
   <h2>Attack surface</h2>
@@ -818,7 +957,12 @@ trivy();
 report.findings = findings;
 
 for (const f of findings) {
-  report.summary[f.severity.toLowerCase()]++;
+  const key = String(f.severity || "UNKNOWN").toLowerCase();
+  if (Object.prototype.hasOwnProperty.call(report.summary, key)) {
+    report.summary[key]++;
+  } else {
+    report.summary.unknown++;
+  }
 }
 
 report.intelligence = analyze(findings);

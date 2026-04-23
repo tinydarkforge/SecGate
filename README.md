@@ -153,7 +153,8 @@ Each run writes two files:
     "critical": 0,
     "high": 0,
     "medium": 0,
-    "low": 0
+    "low": 0,
+    "unknown": 0
   },
   "tools": {
     "semgrep":  "ran | clean | skipped | error | pending",
@@ -166,10 +167,15 @@ Each run writes two files:
     {
       "tool": "gitleaks | semgrep | npm | osv | trivy",
       "type": "secret | code | dependency | iac | license",
-      "severity": "CRITICAL | HIGH | MEDIUM | LOW",
+      "severity": "CRITICAL | HIGH | MEDIUM | LOW | UNKNOWN",
       "signature": "rule or package ID",
       "message": "description",
-      "fixable": true
+      "file": "relative or absolute path, or null",
+      "line": 42,
+      "col": 5,
+      "endLine": 42,
+      "fixable": false,
+      "fixableBy": "auto | manual | null"
     }
   ],
   "intelligence": {
@@ -194,6 +200,22 @@ Each run writes two files:
   }
 }
 ```
+
+### Severity tiers
+
+Every finding is normalized to one of 5 tiers at the `addFinding()` ingress:
+
+- **CRITICAL** — exploitable now (secrets, CVSS ≥ 9, hardcoded-credential SAST rules)
+- **HIGH** — high-impact (CVSS 7.0–8.9, Semgrep `ERROR`, rated `HIGH` upstream)
+- **MEDIUM** — meaningful (CVSS 4.0–6.9, `WARNING`, `MODERATE`)
+- **LOW** — informational (CVSS < 4.0, `INFO`, `NOTE`)
+- **UNKNOWN** — upstream provided no severity or an unrecognized value; surfaced explicitly rather than silently miscounted
+
+### Fixability
+
+- `fixableBy: "auto"` — `patch()` returns an executable command; `--apply` will run it (currently only `npm audit fix`).
+- `fixableBy: "manual"` — a patch exists but requires human action (upgrade, rotate, refactor).
+- `fixable: true` mirrors `fixableBy === "auto"` for CI convenience.
 
 ### Tool states
 
