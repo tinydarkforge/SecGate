@@ -5,12 +5,21 @@ on:
     tags:
       - "v*"
 
+permissions: {}
+
 jobs:
-  release:
+  build:
+    name: Build + SBOM + tarball
     runs-on: ubuntu-latest
     permissions:
       contents: read
       id-token: write
+    outputs:
+      tarball_name: ${{ steps.pack.outputs.tarball_name }}
+      tarball_sha256: ${{ steps.hash.outputs.tarball_sha256 }}
+      sbom_name: ${{ steps.sbom.outputs.sbom_name }}
+      sbom_sha256: ${{ steps.hash.outputs.sbom_sha256 }}
+      provenance_subjects: ${{ steps.hash.outputs.provenance_subjects }}
 
     steps:
       - name: Checkout
@@ -31,33 +40,202 @@ jobs:
             exit 1
           fi
 
+      - name: Run smoke tests
+        run: npm test
+
+      - name: Generate CycloneDX SBOM
+        id: sbom
+        run: |
+          SBOM_NAME="secgate-${GITHUB_REF_NAME#v}.sbom.cdx.json"
+          npm sbom --sbom-format cyclonedx --sbom-set-name "@tinydarkforge/secgate" > "$SBOM_NAME"
+          if [ ! -s "$SBOM_NAME" ]; then
+            echo "SBOM generation failed or produced empty file"
+            exit 1
+          fi
+          echo "sbom_name=$SBOM_NAME" >> "$GITHUB_OUTPUT"
+
+      - name: Pack release tarball
+        id: pack
+        run: |
+          npm pack
+          TARBALL=$(ls tinydarkforge-secgate-*.tgz | head -n1)
+          RELEASE_NAME="secgate-${GITHUB_REF_NAME#v}.tgz"
+          mv "$TARBALL" "$RELEASE_NAME"
+          echo "tarball_name=$RELEASE_NAME" >> "$GITHUB_OUTPUT"
+
+      - name: Hash release artifacts
+        id: hash
+        run: |
+          TARBALL="${{ steps.pack.outputs.tarball_name }}"
+          SBOM="${{ steps.sbom.outputs.sbom_name }}"
+          TAR_SHA=$(sha256sum "$TARBALL" | awk '{print $1}')
+          SBOM_SHA=$(sha256sum "$SBOM" | awk '{print $1}')
+          echo "tarball_sha256=$TAR_SHA" >> "$GITHUB_OUTPUT"
+          echo "sbom_sha256=$SBOM_SHA" >> "$GITHUB_OUTPUT"
+          # base64-encoded subjects line for slsa generator
+          SUBJECTS=$(printf "%s  %s\n%s  %s\n" "$TAR_SHA" "$TARBALL" "$SBOM_SHA" "$SBOM" | base64 -w0)
+          echo "provenance_subjects=$SUBJECTS" >> "$GITHUB_OUTPUT"
+
+      - name: Upload release artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-artifacts
+          path: |
+            ${{ steps.pack.outputs.tarball_name }}
+            ${{ steps.sbom.outputs.sbom_name }}
+          if-no-files-found: error
+          retention-days: 7
+
+  provenance:
+    name: SLSA L3 provenance
+    needs: [build]
+    permissions:
+      id-token: write
+      contents: write
+      actions: read
+    uses: slsa-framework/slsa-github-generator/.github/workflows/generator_generic_slsa3.yml@v2.0.0
+    with:
+      base64-subjects: ${{ needs.build.outputs.provenance_subjects }}
+      provenance-name: secgate-${{ github.ref_name }}.intoto.jsonl
+      upload-assets: false
+
+  sign-and-release:
+    name: cosign + GitHub Release
+    needs: [build, provenance]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      id-token: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download release artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: release-artifacts
+          path: ./dist
+
+      - name: Download SLSA attestation
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ needs.provenance.outputs.provenance-name }}
+          path: ./dist
+
+      - name: Gate - require SBOM + attestation present
+        run: |
+          set -e
+          cd dist
+          TARBALL="${{ needs.build.outputs.tarball_name }}"
+          SBOM="${{ needs.build.outputs.sbom_name }}"
+          ATTESTATION="${{ needs.provenance.outputs.provenance-name }}"
+          for f in "$TARBALL" "$SBOM" "$ATTESTATION"; do
+            if [ ! -s "$f" ]; then
+              echo "RELEASE GATE FAILED: missing or empty artifact: $f"
+              exit 1
+            fi
+          done
+          echo "Release gate passed - tarball, SBOM, and SLSA attestation present."
+
+      - name: Install cosign
+        uses: sigstore/cosign-installer@v3.7.0
+        with:
+          cosign-release: "v2.4.1"
+
+      - name: Sign tarball + SBOM with cosign (keyless)
+        working-directory: ./dist
+        env:
+          COSIGN_EXPERIMENTAL: "1"
+          COSIGN_YES: "true"
+        run: |
+          TARBALL="${{ needs.build.outputs.tarball_name }}"
+          SBOM="${{ needs.build.outputs.sbom_name }}"
+          cosign sign-blob --yes \
+            --bundle "${TARBALL}.cosign.bundle" \
+            --output-signature "${TARBALL}.sig" \
+            --output-certificate "${TARBALL}.pem" \
+            "$TARBALL"
+          cosign sign-blob --yes \
+            --bundle "${SBOM}.cosign.bundle" \
+            --output-signature "${SBOM}.sig" \
+            --output-certificate "${SBOM}.pem" \
+            "$SBOM"
+
+      - name: Write SHA256SUMS
+        working-directory: ./dist
+        run: |
+          sha256sum \
+            "${{ needs.build.outputs.tarball_name }}" \
+            "${{ needs.build.outputs.sbom_name }}" \
+            > SHA256SUMS
+
+      - name: Final gate - signatures present
+        working-directory: ./dist
+        run: |
+          set -e
+          TARBALL="${{ needs.build.outputs.tarball_name }}"
+          SBOM="${{ needs.build.outputs.sbom_name }}"
+          for f in "${TARBALL}.sig" "${TARBALL}.pem" "${TARBALL}.cosign.bundle" \
+                   "${SBOM}.sig" "${SBOM}.pem" "${SBOM}.cosign.bundle"; do
+            if [ ! -s "$f" ]; then
+              echo "RELEASE GATE FAILED: missing signature artifact: $f"
+              exit 1
+            fi
+          done
+          echo "cosign gate passed."
+
+      - name: Create GitHub Release and upload assets
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: ${{ github.ref_name }}
+          generate_release_notes: true
+          fail_on_unmatched_files: true
+          files: |
+            dist/${{ needs.build.outputs.tarball_name }}
+            dist/${{ needs.build.outputs.tarball_name }}.sig
+            dist/${{ needs.build.outputs.tarball_name }}.pem
+            dist/${{ needs.build.outputs.tarball_name }}.cosign.bundle
+            dist/${{ needs.build.outputs.sbom_name }}
+            dist/${{ needs.build.outputs.sbom_name }}.sig
+            dist/${{ needs.build.outputs.sbom_name }}.pem
+            dist/${{ needs.build.outputs.sbom_name }}.cosign.bundle
+            dist/${{ needs.provenance.outputs.provenance-name }}
+            dist/SHA256SUMS
+
+  publish-npm:
+    name: npm publish (provenance)
+    needs: [sign-and-release]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          registry-url: "https://registry.npmjs.org"
+
       - name: Install external scanners
         run: |
-          # semgrep
           pip install --quiet semgrep
-          # gitleaks
           curl -sSL https://github.com/gitleaks/gitleaks/releases/download/v8.21.2/gitleaks_8.21.2_linux_x64.tar.gz \
             | sudo tar -xz -C /usr/local/bin gitleaks
-          # osv-scanner
           curl -sSL -o /tmp/osv-scanner \
             https://github.com/google/osv-scanner/releases/latest/download/osv-scanner_linux_amd64
           sudo install -m 755 /tmp/osv-scanner /usr/local/bin/osv-scanner
-          # trivy
           curl -sSL https://aquasecurity.github.io/trivy-repo/deb/public.key \
             | sudo gpg --dearmor -o /usr/share/keyrings/trivy.gpg
           echo "deb [signed-by=/usr/share/keyrings/trivy.gpg] https://aquasecurity.github.io/trivy-repo/deb generic main" \
             | sudo tee /etc/apt/sources.list.d/trivy.list
           sudo apt-get update -qq
           sudo apt-get install -y trivy
-          # verify
-          semgrep --version
-          gitleaks version
-          osv-scanner --version
-          trivy --version
-          node --version
-
-      - name: Run smoke tests
-        run: npm test
 
       - name: Self-scan (block on CRITICAL/HIGH)
         run: node secgate.js .
