@@ -2,7 +2,7 @@
 
 Open-source security scanning and remediation CLI for CI/CD pipelines.
 
-Orchestrates [Semgrep](https://semgrep.dev), [Gitleaks](https://github.com/gitleaks/gitleaks), and `npm audit` — aggregates findings, scores risk, generates fix plans, and blocks pipelines on critical issues.
+Orchestrates [Semgrep](https://semgrep.dev), [Gitleaks](https://github.com/gitleaks/gitleaks), [osv-scanner](https://github.com/google/osv-scanner), [Trivy](https://github.com/aquasecurity/trivy), and `npm audit` — aggregates findings, scores risk, generates fix plans, renders a premium HTML report, and blocks pipelines on critical issues.
 
 > **Status:** Working prototype. Not production-ready for enterprise use.
 
@@ -14,6 +14,8 @@ Orchestrates [Semgrep](https://semgrep.dev), [Gitleaks](https://github.com/gitle
 - Semgrep — static code analysis (SAST)
 - Gitleaks — secret and credential detection
 - npm audit — dependency vulnerability scanning (when `package.json` present)
+- osv-scanner — polyglot SCA (npm, PyPI, Go, Cargo, Maven, RubyGems, Packagist, NuGet, Pub)
+- Trivy — IaC misconfiguration + license scanning (Terraform, Kubernetes, Dockerfile, CloudFormation)
 
 **Risk intelligence**
 - Weighted scoring: CRITICAL=10, HIGH=6, MEDIUM=3, LOW=1
@@ -29,6 +31,7 @@ Orchestrates [Semgrep](https://semgrep.dev), [Gitleaks](https://github.com/gitle
 - Exit code `0` — PASS (no CRITICAL or HIGH findings)
 - Exit code `1` — FAIL (CRITICAL or HIGH findings present)
 - JSON report output (`secgate-v7-report.json`)
+- Premium self-contained HTML report (`<repo-name>.html`) — dark-mode, zero external assets
 - Works in GitHub Actions, GitLab CI, Jenkins
 
 ---
@@ -39,11 +42,13 @@ SecGate requires Node.js >=18. External scanners are optional — missing tools 
 
 ```bash
 # macOS
-brew install semgrep gitleaks
+brew install semgrep gitleaks osv-scanner trivy
 
 # Linux
 pip install semgrep
-# gitleaks: https://github.com/gitleaks/gitleaks#installing
+# gitleaks:      https://github.com/gitleaks/gitleaks#installing
+# osv-scanner:   https://github.com/google/osv-scanner#installation
+# trivy:         https://aquasecurity.github.io/trivy/latest/getting-started/installation/
 ```
 
 ---
