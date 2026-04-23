@@ -156,6 +156,102 @@ For non-blocking (report only):
 
 ---
 
+## SARIF output (`--format sarif`)
+
+SecGate can emit a [SARIF 2.1.0](https://sarifweb.azurewebsites.net/) report alongside the default JSON+HTML output. SARIF is the standard format consumed by GitHub Code Scanning, GitLab SAST, and other platforms.
+
+```bash
+secgate . --format sarif
+# writes: secgate-v7-report.json, <repo-name>.html, <repo-name>.sarif.json
+```
+
+The `--format` flag accepts a comma-separated list. `sarif` is additive — JSON and HTML are always written:
+
+```bash
+secgate . --format json,html,sarif   # same as above
+secgate . --format sarif             # also writes JSON+HTML
+```
+
+### SARIF structure
+
+- One `runs[]` entry per scanner (semgrep, gitleaks, npm, osv, trivy).
+- Each finding maps to a `result` with `ruleId` = signature, `level` derived from severity, and `locations[].physicalLocation` when file/line data is present.
+- `properties["security-severity"]` carries a numeric CVSS-style score for GitHub Code Scanning sort order: CRITICAL=9.5, HIGH=7.5, MEDIUM=5, LOW=2, UNKNOWN=0.
+
+### Upload to GitHub Code Scanning
+
+```yaml
+- name: Run SecGate
+  id: secgate
+  run: npx @tinydarkforge/secgate . --format sarif
+
+- name: Upload SARIF
+  uses: github/codeql-action/upload-sarif@v3
+  if: always()
+  with:
+    sarif_file: <repo-name>.sarif.json
+    category: secgate
+```
+
+---
+
+## Use as a GitHub Action
+
+A composite action is published in this repository at `.github/actions/secgate/`.
+
+```yaml
+- name: SecGate Security Gate
+  id: secgate
+  uses: tinydarkforge/SecGate/.github/actions/secgate@main
+  with:
+    target: "."
+    apply: "false"
+    fail-on: "critical,high"
+    format: "json,html,sarif"
+
+- name: Upload HTML + JSON
+  if: always()
+  uses: actions/upload-artifact@v4
+  with:
+    name: secgate-report
+    path: |
+      secgate-v7-report.json
+      *.html
+
+- name: Upload SARIF to Code Scanning
+  if: always() && steps.secgate.outputs.sarif-path != ''
+  uses: github/codeql-action/upload-sarif@v3
+  with:
+    sarif_file: ${{ steps.secgate.outputs.sarif-path }}
+    category: secgate
+```
+
+**Action inputs:**
+
+| Input | Default | Description |
+|-------|---------|-------------|
+| `target` | `.` | Directory to scan |
+| `apply` | `false` | Execute fixable remediations |
+| `fail-on` | `critical,high` | Severity levels that fail the step |
+| `format` | `json,html` | Output formats (comma-separated: json, html, sarif) |
+
+**Action outputs:**
+
+| Output | Description |
+|--------|-------------|
+| `report-path` | Path to `secgate-v7-report.json` |
+| `sarif-path` | Path to `<repo>.sarif.json` (set only when format includes `sarif`) |
+
+**Pinned SHA recommendation:** For production workflows, pin to a full commit SHA rather than `@main`:
+
+```yaml
+uses: tinydarkforge/SecGate/.github/actions/secgate@<full-sha>
+```
+
+See `.github/workflows/example-secgate.yml` in this repository for a complete reference workflow.
+
+---
+
 ## Report output
 
 Each run writes two files:

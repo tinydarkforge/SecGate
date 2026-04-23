@@ -37,6 +37,7 @@ Options:
   --output-dir <dir>  Directory to write report files (default: target)
   --strip-paths       Relativize target to repo basename in the report.
                       Auto-enabled when CI=true.
+  --format <fmt>      Output formats: json,html (default) or sarif
   --debug             Print raw scanner output
   --version, -v       Print version and exit
   --help, -h          Show this help
@@ -53,6 +54,7 @@ Exit codes:
 Output:
   secgate-v7-report.json    machine-readable report
   <repo-name>.html          premium HTML report
+  <repo-name>.sarif.json    SARIF 2.1.0 report (when --format sarif)
 `);
   process.exit(0);
 }
@@ -70,6 +72,9 @@ const APPLY = argv.includes("--apply");
 const DEBUG = argv.includes("--debug");
 const STRIP_PATHS = argv.includes("--strip-paths") || process.env.CI === "true";
 const OUTPUT_DIR_FLAG = argValue("--output-dir");
+const FORMAT_IDX = argv.indexOf("--format");
+const FORMAT = FORMAT_IDX >= 0 ? (argv[FORMAT_IDX + 1] || "json,html") : "json,html";
+const EMIT_SARIF = FORMAT.split(",").map(s => s.trim()).includes("sarif");
 
 const target = path.resolve(rawTarget);
 
@@ -1168,6 +1173,141 @@ function renderHtml(rep, repoName) {
 }
 
 /* -----------------------------
+   SARIF 2.1.0 SERIALIZER
+------------------------------*/
+
+const SARIF_LEVEL = {
+  CRITICAL: "error",
+  HIGH: "error",
+  MEDIUM: "warning",
+  LOW: "note",
+  UNKNOWN: "none"
+};
+
+const SARIF_SCORE = {
+  CRITICAL: 9.5,
+  HIGH: 7.5,
+  MEDIUM: 5.0,
+  LOW: 2.0,
+  UNKNOWN: 0.0
+};
+
+const TOOL_INFO = {
+  semgrep: { name: "Semgrep", uri: "https://semgrep.dev" },
+  gitleaks: { name: "Gitleaks", uri: "https://github.com/gitleaks/gitleaks" },
+  npm: { name: "npm audit", uri: "https://docs.npmjs.com/cli/commands/npm-audit" },
+  osv: { name: "osv-scanner", uri: "https://github.com/google/osv-scanner" },
+  trivy: { name: "Trivy", uri: "https://github.com/aquasecurity/trivy" }
+};
+
+function toolVersion(binary) {
+  try {
+    const out = execFileSync(binary, ["--version"], {
+      encoding: "utf-8",
+      stdio: "pipe",
+      timeout: 5000
+    });
+    const m = out.match(/(\d+\.\d+\.\d+[\w.-]*)/);
+    return m ? m[1] : "unknown";
+  } catch {
+    return "unknown";
+  }
+}
+
+function relativizeUri(filePath, baseDir) {
+  if (!filePath) return null;
+  if (path.isAbsolute(filePath)) {
+    const rel = path.relative(baseDir, filePath);
+    return rel.startsWith("..") ? filePath : rel;
+  }
+  return filePath;
+}
+
+function buildSarif(rep, repoName, baseDir) {
+  const toolGroups = {};
+  for (const f of rep.findings) {
+    if (!toolGroups[f.tool]) toolGroups[f.tool] = [];
+    toolGroups[f.tool].push(f);
+  }
+
+  const runs = TOOLS.map(toolKey => {
+    const info = TOOL_INFO[toolKey] || { name: toolKey, uri: "" };
+    const toolFindings = toolGroups[toolKey] || [];
+
+    const rules = [];
+    const ruleIds = new Set();
+    for (const f of toolFindings) {
+      if (!ruleIds.has(f.signature)) {
+        ruleIds.add(f.signature);
+        rules.push({
+          id: f.signature,
+          name: f.signature,
+          shortDescription: { text: f.message || f.signature },
+          properties: {
+            "security-severity": String(SARIF_SCORE[f.severity] ?? 0)
+          }
+        });
+      }
+    }
+
+    const results = toolFindings.map(f => {
+      const uri = relativizeUri(f.file, baseDir);
+      const region = {};
+      if (f.line != null) region.startLine = f.line;
+      if (f.col != null) region.startColumn = f.col;
+      if (f.endLine != null) region.endLine = f.endLine;
+
+      const location = uri
+        ? {
+            physicalLocation: {
+              artifactLocation: { uri, uriBaseId: "%SRCROOT%" },
+              ...(Object.keys(region).length ? { region } : {})
+            }
+          }
+        : null;
+
+      return {
+        ruleId: f.signature,
+        level: SARIF_LEVEL[f.severity] || "none",
+        message: { text: f.message || f.signature },
+        ...(location ? { locations: [location] } : {}),
+        properties: {
+          "security-severity": String(SARIF_SCORE[f.severity] ?? 0),
+          tool: f.tool,
+          type: f.type,
+          fixableBy: f.fixableBy || null
+        }
+      };
+    });
+
+    const binary = toolKey === "osv" ? "osv-scanner" : toolKey === "npm" ? null : toolKey;
+    const version = binary ? toolVersion(binary) : "unknown";
+
+    return {
+      tool: {
+        driver: {
+          name: info.name,
+          version,
+          informationUri: info.uri,
+          rules
+        }
+      },
+      results,
+      artifacts: [],
+      properties: {
+        toolStatus: rep.tools[toolKey] || "pending"
+      }
+    };
+  });
+
+  return {
+    $schema: "https://json.schemastore.org/sarif-2.1.0-rtm.5.json",
+    version: "2.1.0",
+    runs
+  };
+}
+
+/* -----------------------------
    PIPELINE
 ------------------------------*/
 
@@ -1316,5 +1456,12 @@ fs.writeFileSync(htmlFile, renderHtml(report, repoName));
 
 console.log("\nReport saved:", outputFile);
 console.log("HTML report:", htmlFile);
+
+if (EMIT_SARIF) {
+  const sarifFile = `${repoName}.sarif.json`;
+  const sarif = buildSarif(report, repoName, target);
+  fs.writeFileSync(sarifFile, JSON.stringify(sarif, null, 2));
+  console.log("SARIF report:", sarifFile);
+}
 
 process.exit(report.status === "PASS" ? 0 : 1);
