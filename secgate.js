@@ -1,16 +1,67 @@
 #!/usr/bin/env node
 
-import { execSync } from "child_process";
+import { execFileSync } from "child_process";
 import fs from "fs";
 import path from "path";
+import { fileURLToPath } from "url";
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const pkg = JSON.parse(
+  fs.readFileSync(path.join(__dirname, "package.json"), "utf-8")
+);
 
 /* -----------------------------
    CONFIG
 ------------------------------*/
 
-const target = process.argv[2] || ".";
-const APPLY = process.argv.includes("--apply");
-const DEBUG = process.argv.includes("--debug");
+const argv = process.argv.slice(2);
+
+if (argv.includes("--version") || argv.includes("-v")) {
+  console.log(pkg.version);
+  process.exit(0);
+}
+
+if (argv.includes("--help") || argv.includes("-h")) {
+  console.log(`SecGate v${pkg.version} — tiny security gate for CI/CD
+
+Usage:
+  secgate [target] [options]
+
+Arguments:
+  target          Directory to scan (default: current directory)
+
+Options:
+  --apply         Execute fixable remediations (default: dry-run)
+  --debug         Print raw scanner output
+  --version, -v   Print version and exit
+  --help, -h      Show this help
+
+Exit codes:
+  0  PASS — no CRITICAL or HIGH findings
+  1  FAIL — CRITICAL or HIGH findings present
+  2  Invalid target or CLI error
+
+Output:
+  secgate-v7-report.json    machine-readable report
+  <repo-name>.html          premium HTML report
+`);
+  process.exit(0);
+}
+
+const rawTarget = argv[0] && !argv[0].startsWith("--") ? argv[0] : ".";
+const APPLY = argv.includes("--apply");
+const DEBUG = argv.includes("--debug");
+
+const target = path.resolve(rawTarget);
+
+if (!fs.existsSync(target)) {
+  console.error(`Target not found: ${rawTarget}`);
+  process.exit(2);
+}
+if (!fs.statSync(target).isDirectory()) {
+  console.error(`Target is not a directory: ${rawTarget}`);
+  process.exit(2);
+}
 
 const outputFile = "secgate-v7-report.json";
 
@@ -31,7 +82,7 @@ const toolStatus = {
 };
 
 const report = {
-  version: "7.0",
+  version: pkg.version,
   timestamp: new Date().toISOString(),
   target,
   mode: APPLY ? "apply" : "dry-run",
@@ -62,9 +113,14 @@ const report = {
    UTILS
 ------------------------------*/
 
-function run(cmd) {
+function runTool(binary, args, opts = {}) {
   try {
-    return execSync(cmd, { encoding: "utf-8", stdio: "pipe" });
+    return execFileSync(binary, args, {
+      encoding: "utf-8",
+      stdio: "pipe",
+      maxBuffer: 64 * 1024 * 1024,
+      ...opts
+    });
   } catch (e) {
     return ((e.stdout || "") + (e.stderr || "")).toString();
   }
@@ -72,7 +128,7 @@ function run(cmd) {
 
 function toolExists(cmd) {
   try {
-    execSync(`which ${cmd}`, { stdio: "ignore" });
+    execFileSync("which", [cmd], { stdio: "ignore" });
     return true;
   } catch {
     return false;
@@ -104,7 +160,11 @@ function addFinding(f) {
 function gitleaks() {
   if (!toolExists("gitleaks")) { toolStatus.gitleaks = "skipped"; return; }
 
-  const out = run(`gitleaks detect --source ${target} --report-format json`);
+  const out = runTool("gitleaks", [
+    "detect",
+    "--source", target,
+    "--report-format", "json"
+  ]);
   debug("gitleaks", out);
 
   if (!out.trim()) { toolStatus.gitleaks = "clean"; return; }
@@ -133,7 +193,11 @@ function gitleaks() {
 function semgrep() {
   if (!toolExists("semgrep")) { toolStatus.semgrep = "skipped"; return; }
 
-  const out = run(`semgrep --config=auto --json ${target}`);
+  const out = runTool("semgrep", [
+    "--config=auto",
+    "--json",
+    target
+  ]);
   debug("semgrep", out);
 
   try {
@@ -167,8 +231,16 @@ function severityFromCvss(score) {
 function osvScanner() {
   if (!toolExists("osv-scanner")) { toolStatus.osv = "skipped"; return; }
 
-  const out = run(`osv-scanner --format json -r ${target}`);
+  const out = runTool("osv-scanner", [
+    "--format", "json",
+    "-r", target
+  ]);
   debug("osv-scanner", out);
+
+  if (!out.trim() || /No package sources found/i.test(out)) {
+    toolStatus.osv = "clean";
+    return;
+  }
 
   try {
     const data = JSON.parse(out);
@@ -206,9 +278,15 @@ function osvScanner() {
 function trivy() {
   if (!toolExists("trivy")) { toolStatus.trivy = "skipped"; return; }
 
-  const out = run(
-    `trivy fs --quiet --format json --scanners misconfig,license ${target}`
-  );
+  const out = runTool("trivy", [
+    "fs",
+    "--quiet",
+    "--format", "json",
+    "--scanners", "misconfig,license",
+    "--skip-dirs", "**/test/fixtures",
+    "--skip-dirs", "**/node_modules",
+    target
+  ]);
   debug("trivy", out);
 
   try {
@@ -247,9 +325,9 @@ function trivy() {
 }
 
 function npmAudit() {
-  if (!fs.existsSync(`${target}/package.json`)) { toolStatus.npm = "skipped"; return; }
+  if (!fs.existsSync(path.join(target, "package.json"))) { toolStatus.npm = "skipped"; return; }
 
-  const out = run(`cd ${target} && npm audit --json`);
+  const out = runTool("npm", ["audit", "--json"], { cwd: target });
   debug("npm audit", out);
 
   const jsonStart = out.indexOf("{");
@@ -354,7 +432,8 @@ function patch(f) {
   if (f.tool === "npm") {
     return {
       action: "npm audit fix",
-      cmd: `cd ${target} && npm audit fix`
+      cmd: `npm audit fix (cwd=${target})`,
+      exec: { binary: "npm", args: ["audit", "fix"], cwd: target }
     };
   }
 
@@ -407,12 +486,12 @@ function remediate(findings) {
       continue;
     }
 
-    if (f.fixable && p.cmd) {
+    if (f.fixable && p.exec) {
       staged.push(p);
 
       if (APPLY) {
         try {
-          run(p.cmd);
+          runTool(p.exec.binary, p.exec.args, { cwd: p.exec.cwd });
           executed.push(p.action);
         } catch {
           blocked.push(p);
