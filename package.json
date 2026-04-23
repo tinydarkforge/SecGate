@@ -47,12 +47,15 @@
     "provenance": true
   },
   "scripts": {
-    "test": "node test/smoke.mjs && node test/schema.mjs && node test/sarif.mjs && node test/trivy-image.mjs && node test/no-lockfile.mjs",
+    "test": "node test/smoke.mjs && node test/schema.mjs && node test/sarif.mjs && node test/trivy-image.mjs && node test/no-lockfile.mjs && node test/config.mjs && node test/baseline.mjs && node test/suppression.mjs",
     "test:smoke": "node test/smoke.mjs",
     "test:schema": "node test/schema.mjs",
     "test:sarif": "node test/sarif.mjs",
     "test:trivy-image": "node test/trivy-image.mjs",
     "test:no-lockfile": "node test/no-lockfile.mjs",
+    "test:config": "node test/config.mjs",
+    "test:baseline": "node test/baseline.mjs",
+    "test:suppression": "node test/suppression.mjs",
     "scan": "node secgate.js ."
   }
 }

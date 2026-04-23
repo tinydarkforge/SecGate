@@ -11,7 +11,7 @@ const pkg = JSON.parse(
 );
 
 /* -----------------------------
-   CONFIG
+   CLI FLAGS
 ------------------------------*/
 
 const argv = process.argv.slice(2);
@@ -38,6 +38,8 @@ Options:
   --strip-paths       Relativize target to repo basename in the report.
                       Auto-enabled when CI=true.
   --format <fmt>      Output formats: json,html (default) or sarif
+  --baseline          Compare against baseline; fail only on net-new findings
+  --update-baseline   Write current findings to baseline file then exit 0
   --debug             Print raw scanner output
   --version, -v       Print version and exit
   --help, -h          Show this help
@@ -46,9 +48,19 @@ Environment:
   SECGATE_CONFIRM_APPLY=1   Non-interactive confirmation for --apply
   CI=true                   Auto-enables --strip-paths
 
+Config file (.secgate.config.json in target):
+  failOn             Severities that trigger exit 1 (default: ["critical","high"])
+  scanners           Map of scanner name → true/false to enable/disable
+  severityOverrides  Array of {rule, severity} to override matched findings
+  ignore             Array of signatures to drop entirely
+  baselineFile       Path to baseline JSON (default: .secgate-baseline.json)
+  customSemgrepRules Path to additional semgrep rules (passed as --config=<path>)
+
+Precedence: CLI flag > config file > defaults
+
 Exit codes:
-  0  PASS — no CRITICAL or HIGH findings
-  1  FAIL — CRITICAL or HIGH findings present
+  0  PASS — no findings matching failOn severities (or all matched baseline)
+  1  FAIL — net-new findings matching failOn severities
   2  Invalid target or CLI error
 
 Output:
@@ -75,6 +87,8 @@ const OUTPUT_DIR_FLAG = argValue("--output-dir");
 const FORMAT_IDX = argv.indexOf("--format");
 const FORMAT = FORMAT_IDX >= 0 ? (argv[FORMAT_IDX + 1] || "json,html") : "json,html";
 const EMIT_SARIF = FORMAT.split(",").map(s => s.trim()).includes("sarif");
+const BASELINE_MODE = argv.includes("--baseline");
+const UPDATE_BASELINE = argv.includes("--update-baseline");
 
 const target = path.resolve(rawTarget);
 
@@ -120,10 +134,50 @@ const reportTarget = STRIP_PATHS ? repoName : target;
 const outputFile = path.join(outputDir, "secgate-v7-report.json");
 
 /* -----------------------------
+   CONFIG LOADER
+------------------------------*/
+
+const CONFIG_DEFAULTS = {
+  failOn: ["critical", "high"],
+  scanners: { semgrep: true, gitleaks: true, npm: true, osv: true, trivy: true },
+  severityOverrides: [],
+  ignore: [],
+  baselineFile: ".secgate-baseline.json",
+  customSemgrepRules: null
+};
+
+function loadConfig(targetDir) {
+  const cfgPath = path.join(targetDir, ".secgate.config.json");
+  if (!fs.existsSync(cfgPath)) return { ...CONFIG_DEFAULTS };
+
+  let raw;
+  try {
+    raw = JSON.parse(fs.readFileSync(cfgPath, "utf-8"));
+  } catch {
+    console.error(`[secgate] Invalid JSON in ${cfgPath} — using defaults`);
+    return { ...CONFIG_DEFAULTS };
+  }
+
+  return {
+    failOn: Array.isArray(raw.failOn) ? raw.failOn.map(s => String(s).toLowerCase()) : CONFIG_DEFAULTS.failOn,
+    scanners: typeof raw.scanners === "object" && raw.scanners !== null
+      ? { ...CONFIG_DEFAULTS.scanners, ...raw.scanners }
+      : CONFIG_DEFAULTS.scanners,
+    severityOverrides: Array.isArray(raw.severityOverrides) ? raw.severityOverrides : [],
+    ignore: Array.isArray(raw.ignore) ? raw.ignore : [],
+    baselineFile: typeof raw.baselineFile === "string" ? raw.baselineFile : CONFIG_DEFAULTS.baselineFile,
+    customSemgrepRules: typeof raw.customSemgrepRules === "string" ? raw.customSemgrepRules : null
+  };
+}
+
+const config = loadConfig(target);
+
+/* -----------------------------
    STATE
 ------------------------------*/
 
 const findings = [];
+const suppressions = { count: 0, byRule: {} };
 
 const TOOLS = ["semgrep", "gitleaks", "npm", "osv", "trivy", "trivyImage"];
 
@@ -150,6 +204,8 @@ const report = {
   findings: [],
   tools: toolStatus,
   toolSkipReason,
+
+  suppressions,
 
   intelligence: {
     riskScore: 0,
@@ -239,8 +295,86 @@ function normalizeSeverity(raw) {
   return SEVERITY_TIERS.includes(v) ? v : "UNKNOWN";
 }
 
+/**
+ * Glob-style pattern match: supports literal strings and '*' wildcard.
+ * '*' matches any sequence of characters (including empty).
+ */
+function matchPattern(pattern, value) {
+  if (!pattern.includes("*")) return pattern === value;
+  const escaped = pattern.replace(/[.+^${}()|[\]\\]/g, "\\$&").replace(/\*/g, ".*");
+  return new RegExp(`^${escaped}$`).test(value);
+}
+
+function matchesAny(patterns, value) {
+  return patterns.some(p => matchPattern(p, value));
+}
+
+/**
+ * Check a source file for an inline suppression comment on line N or N-1.
+ * Supports:
+ *   # secgate:ignore <rule>
+ *   // secgate:ignore <rule>
+ *   /* secgate:ignore <rule> *\/
+ */
+function hasInlineSuppression(filePath, lineNumber, ruleId) {
+  if (!filePath || lineNumber == null) return false;
+
+  let src;
+  try {
+    src = fs.readFileSync(filePath, "utf-8");
+  } catch {
+    return false;
+  }
+
+  const lines = src.split("\n");
+  const checkLines = [lineNumber - 1, lineNumber - 2].filter(i => i >= 0);
+
+  for (const idx of checkLines) {
+    const line = lines[idx] || "";
+    const suppressRe = /(?:#|\/\/|\/\*)\s*secgate:ignore\s+(\S+)/;
+    const m = line.match(suppressRe);
+    if (m) {
+      const suppressedRule = m[1];
+      if (matchPattern(suppressedRule, ruleId) || suppressedRule === ruleId) {
+        return suppressedRule;
+      }
+    }
+  }
+  return false;
+}
+
+function applyOverrides(severity, signature) {
+  for (const ov of config.severityOverrides) {
+    if (ov && typeof ov.rule === "string" && typeof ov.severity === "string") {
+      if (matchPattern(ov.rule, signature)) {
+        return normalizeSeverity(ov.severity);
+      }
+    }
+  }
+  return severity;
+}
+
 function addFinding(f) {
-  const severity = normalizeSeverity(f.severity);
+  const rawSeverity = normalizeSeverity(f.severity);
+  const signature = f.signature || "";
+
+  // 1. Apply severity overrides
+  const severity = applyOverrides(rawSeverity, signature);
+
+  // 2. Drop ignored signatures
+  if (matchesAny(config.ignore, signature)) return;
+
+  // 3. Check inline suppression
+  const resolvedFile = f.file
+    ? (path.isAbsolute(f.file) ? f.file : path.join(target, f.file))
+    : null;
+  const suppressedRule = hasInlineSuppression(resolvedFile, f.line, signature);
+  if (suppressedRule) {
+    suppressions.count++;
+    suppressions.byRule[suppressedRule] = (suppressions.byRule[suppressedRule] || 0) + 1;
+    return;
+  }
+
   const fixableBy =
     f.fixableBy === "auto" || f.fixableBy === "manual"
       ? f.fixableBy
@@ -252,7 +386,7 @@ function addFinding(f) {
     tool: f.tool,
     type: f.type,
     severity,
-    signature: f.signature,
+    signature,
     message: f.message,
     file: f.file ?? null,
     line: f.line ?? null,
@@ -273,6 +407,11 @@ function addFinding(f) {
 ------------------------------*/
 
 function gitleaks() {
+  if (config.scanners.gitleaks === false) {
+    toolStatus.gitleaks = "skipped";
+    toolSkipReason.gitleaks = "disabled in config";
+    return;
+  }
   if (!toolExists("gitleaks")) { toolStatus.gitleaks = "skipped"; toolSkipReason.gitleaks = "not installed"; return; }
 
   const out = runTool("gitleaks", [
@@ -337,13 +476,19 @@ function semgrepSeverity(r) {
 }
 
 function semgrep() {
+  if (config.scanners.semgrep === false) {
+    toolStatus.semgrep = "skipped";
+    toolSkipReason.semgrep = "disabled in config";
+    return;
+  }
   if (!toolExists("semgrep")) { toolStatus.semgrep = "skipped"; toolSkipReason.semgrep = "not installed"; return; }
 
-  const out = runTool("semgrep", [
-    "--config=auto",
-    "--json",
-    target
-  ]);
+  const semgrepArgs = ["--config=auto", "--json", target];
+  if (config.customSemgrepRules) {
+    semgrepArgs.unshift(`--config=${config.customSemgrepRules}`);
+  }
+
+  const out = runTool("semgrep", semgrepArgs);
   debug("semgrep", out);
 
   try {
@@ -380,9 +525,6 @@ function severityFromCvss(score) {
 }
 
 function cvssBaseScore(vec) {
-  // OSV stores either a bare vector ("CVSS:3.1/AV:N/...") with no score,
-  // or a prefixed score ("7.5/CVSS:3.1/..."). Strip the CVSS version prefix
-  // first so we don't mistake "3.1" for the base score.
   const stripped = String(vec || "").replace(/CVSS:\d+\.\d+\/?/, "");
   const m = stripped.match(/(?:^|[^\d])(\d+(?:\.\d+)?)/);
   return m ? parseFloat(m[1]) : NaN;
@@ -398,7 +540,6 @@ function ratingFromText(txt) {
 }
 
 function osvSeverity(v) {
-  // 1. CVSS numeric score — prefer V3, fall back to V2.
   const sev = v.severity || [];
   let best = 0;
   for (const s of sev) {
@@ -411,18 +552,15 @@ function osvSeverity(v) {
   const bySeverity = severityFromCvss(best);
   if (bySeverity) return bySeverity;
 
-  // 2. database_specific.severity rating string
   const dbSev = v.database_specific?.severity;
   const byDb = ratingFromText(dbSev);
   if (byDb) return byDb;
 
-  // 3. Any rating text on severity entries
   for (const s of sev) {
     const byText = ratingFromText(s.type) || ratingFromText(s.score);
     if (byText) return byText;
   }
 
-  // 4. Advisory body / details as last resort.
   const byDetails = ratingFromText(v.details);
   if (byDetails) return byDetails;
 
@@ -430,6 +568,11 @@ function osvSeverity(v) {
 }
 
 function osvScanner() {
+  if (config.scanners.osv === false) {
+    toolStatus.osv = "skipped";
+    toolSkipReason.osv = "disabled in config";
+    return;
+  }
   if (!toolExists("osv-scanner")) { toolStatus.osv = "skipped"; toolSkipReason.osv = "not installed"; return; }
 
   const out = runTool("osv-scanner", [
@@ -477,6 +620,11 @@ function osvScanner() {
 }
 
 function trivy() {
+  if (config.scanners.trivy === false) {
+    toolStatus.trivy = "skipped";
+    toolSkipReason.trivy = "disabled in config";
+    return;
+  }
   if (!toolExists("trivy")) { toolStatus.trivy = "skipped"; toolSkipReason.trivy = "not installed"; return; }
 
   const out = runTool("trivy", [
@@ -636,6 +784,11 @@ function trivyImage() {
 }
 
 function npmAudit() {
+  if (config.scanners.npm === false) {
+    toolStatus.npm = "skipped";
+    toolSkipReason.npm = "disabled in config";
+    return;
+  }
   if (!fs.existsSync(path.join(target, "package.json"))) {
     toolStatus.npm = "skipped";
     toolSkipReason.npm = "no package.json in target";
@@ -703,6 +856,62 @@ function npmAudit() {
 }
 
 /* -----------------------------
+   BASELINE
+------------------------------*/
+
+function loadBaseline() {
+  const baselinePath = path.isAbsolute(config.baselineFile)
+    ? config.baselineFile
+    : path.join(target, config.baselineFile);
+
+  if (!fs.existsSync(baselinePath)) return null;
+
+  try {
+    const raw = JSON.parse(fs.readFileSync(baselinePath, "utf-8"));
+    if (!Array.isArray(raw.findings)) return null;
+    return raw;
+  } catch {
+    console.error(`[secgate] Could not parse baseline file: ${baselinePath}`);
+    return null;
+  }
+}
+
+function writeBaseline(allFindings) {
+  const baselinePath = path.isAbsolute(config.baselineFile)
+    ? config.baselineFile
+    : path.join(target, config.baselineFile);
+
+  const baseline = {
+    generatedAt: new Date().toISOString(),
+    findings: allFindings.map(f => ({
+      signature: f.signature,
+      severity: f.severity,
+      file: f.file,
+      line: f.line
+    }))
+  };
+
+  fs.writeFileSync(baselinePath, JSON.stringify(baseline, null, 2));
+  return baselinePath;
+}
+
+function applyBaseline(allFindings, baseline) {
+  const baselineSet = new Set(
+    baseline.findings.map(f => `${f.signature}|${f.file}|${f.line}`)
+  );
+
+  let baselineMatchedCount = 0;
+  const annotated = allFindings.map(f => {
+    const key = `${f.signature}|${f.file}|${f.line}`;
+    const isBaseline = baselineSet.has(key);
+    if (isBaseline) baselineMatchedCount++;
+    return { ...f, baseline: isBaseline };
+  });
+
+  return { annotated, baselineMatchedCount };
+}
+
+/* -----------------------------
    INTELLIGENCE ENGINE
 ------------------------------*/
 
@@ -713,6 +922,8 @@ function analyze(findings) {
   const recs = [];
 
   for (const f of findings) {
+    if (f.baseline) continue;
+
     const weight =
       f.severity === "CRITICAL"
         ? 10
@@ -774,24 +985,15 @@ function patch(f) {
   }
 
   if (f.tool === "semgrep") {
-    return {
-      action: "manual code fix",
-      cmd: null
-    };
+    return { action: "manual code fix", cmd: null };
   }
 
   if (f.tool === "gitleaks") {
-    return {
-      action: "remove + rotate secret",
-      cmd: null
-    };
+    return { action: "remove + rotate secret", cmd: null };
   }
 
   if (f.tool === "osv") {
-    return {
-      action: "upgrade dependency",
-      cmd: null
-    };
+    return { action: "upgrade dependency", cmd: null };
   }
 
   if (f.tool === "trivy") {
@@ -812,8 +1014,9 @@ function remediate(findings) {
   const blocked = [];
 
   for (const f of findings) {
-    const p = patch(f);
+    if (f.baseline) continue;
 
+    const p = patch(f);
     plan.push({ issue: f.signature, patch: p });
 
     if (f.severity === "CRITICAL") {
@@ -894,7 +1097,6 @@ function formatLocation(f) {
   const lineFrag = f.line != null ? `:${f.line}` : "";
   const colFrag = f.col != null ? `:${f.col}` : "";
   const label = `${rel}${lineFrag}${colFrag}`;
-  // file:// link only when we have an absolute-looking path
   const isAbs = rel.startsWith("/") || /^[a-zA-Z]:[\\/]/.test(rel);
   if (isAbs) {
     const href = `file://${rel}${f.line != null ? `#L${f.line}` : ""}`;
@@ -937,13 +1139,14 @@ function renderHtml(rep, repoName) {
     list
       .map(
         f => `
-        <tr>
+        <tr${f.baseline ? ' class="baseline-row"' : ""}>
           <td><span class="pill" style="background:${sevColor(f.severity)}">${e(f.severity)}</span></td>
           <td>${e(f.type)}</td>
           <td class="mono">${e(f.signature)}</td>
           <td class="mono">${formatLocation(f) || '<span class="empty">—</span>'}</td>
           <td>${e(f.message)}</td>
           <td>${f.fixableBy === "auto" ? "auto" : f.fixableBy === "manual" ? "manual" : "no"}</td>
+          <td>${f.baseline ? '<span class="bl-badge">baseline</span>' : ""}</td>
         </tr>`
       )
       .join("");
@@ -951,6 +1154,7 @@ function renderHtml(rep, repoName) {
   const panelBody = tool => {
     const st = tools[tool] || "pending";
     const list = byTool[tool] || [];
+    const skipReason = rep.toolSkipReason && rep.toolSkipReason[tool];
 
     if (st === "skipped") {
       const reason = rep.toolSkipReason?.[tool] || "not installed";
@@ -966,7 +1170,7 @@ function renderHtml(rep, repoName) {
       return `<div class="empty success">${e(TOOL_LABEL[tool])} scanned the target and found no issues.</div>`;
     }
     return `<table>
-      <thead><tr><th>Severity</th><th>Type</th><th>Signature</th><th>Location</th><th>Message</th><th>Fixable</th></tr></thead>
+      <thead><tr><th>Severity</th><th>Type</th><th>Signature</th><th>Location</th><th>Message</th><th>Fixable</th><th>Baseline</th></tr></thead>
       <tbody>${rowsFor(list)}</tbody>
     </table>`;
   };
@@ -1026,6 +1230,19 @@ function renderHtml(rep, repoName) {
 
   const statusClr = rep.status === "PASS" ? "#34c759" : "#ff3b30";
 
+  // Baseline diff section
+  let baselineDiffSection = "";
+  if (rep.baselineDiff) {
+    const bd = rep.baselineDiff;
+    baselineDiffSection = `
+  <h2>Baseline diff</h2>
+  <div class="kpis" style="grid-template-columns: repeat(3, 1fr)">
+    <div class="kpi"><div class="label">Net-new</div><div class="value" style="color:${bd.netNew > 0 ? "#ff9500" : "#34c759"}">${e(bd.netNew)}</div></div>
+    <div class="kpi"><div class="label">Baseline matched</div><div class="value" style="color:#34c759">${e(bd.baselineMatchedCount)}</div></div>
+    <div class="kpi"><div class="label">Suppressed</div><div class="value" style="color:#8e8e93">${e(rep.suppressions?.count ?? 0)}</div></div>
+  </div>`;
+  }
+
   return `<!doctype html>
 <html lang="en">
 <head>
@@ -1078,6 +1295,8 @@ function renderHtml(rep, repoName) {
   li { margin: 4px 0; }
   code.cmd { display: inline-block; padding: 2px 6px; margin-left: 8px; background: #1f1f1f; border-radius: 4px; font-size: 11px; }
   .empty.success { color: #34c759; }
+  .baseline-row { opacity: 0.55; }
+  .bl-badge { display: inline-block; padding: 2px 6px; border-radius: 4px; background: #1f1f1f; color: #8e8e93; font-size: 10px; font-weight: 600; text-transform: uppercase; }
 
   .tabs { margin-top: 8px; }
   .tab-radio { position: absolute; opacity: 0; pointer-events: none; }
@@ -1146,6 +1365,8 @@ function renderHtml(rep, repoName) {
 
   <h2>Attack surface</h2>
   <div>${surfaceChips || '<span class="empty">Nothing detected.</span>'}</div>
+
+  ${baselineDiffSection}
 
   <h2>Findings by tool (${rep.findings.length} total)</h2>
   <div class="tabs">
@@ -1365,9 +1586,35 @@ trivyImage();
    PROCESS
 ------------------------------*/
 
-report.findings = findings;
+// --update-baseline: write and exit before any further processing
+if (UPDATE_BASELINE) {
+  const baselinePath = writeBaseline(findings);
+  console.log(`\nBaseline written: ${baselinePath} (${findings.length} findings)`);
+  process.exit(0);
+}
 
-for (const f of findings) {
+// Baseline comparison
+let baselineDiff = null;
+let activeFindings = findings;
+
+if (BASELINE_MODE) {
+  const baseline = loadBaseline();
+  if (baseline) {
+    const { annotated, baselineMatchedCount } = applyBaseline(findings, baseline);
+    activeFindings = annotated;
+    const netNew = annotated.filter(f => !f.baseline).length;
+    baselineDiff = { netNew, baselineMatchedCount };
+    console.log(`\nBaseline: ${baselineMatchedCount} matched, ${netNew} net-new`);
+  } else {
+    console.log("\nBaseline: no baseline file found, treating all findings as net-new");
+  }
+}
+
+report.findings = activeFindings;
+if (baselineDiff) report.baselineDiff = baselineDiff;
+report.toolSkipReason = toolSkipReason;
+
+for (const f of activeFindings) {
   const key = String(f.severity || "UNKNOWN").toLowerCase();
   if (Object.prototype.hasOwnProperty.call(report.summary, key)) {
     report.summary[key]++;
@@ -1376,17 +1623,20 @@ for (const f of findings) {
   }
 }
 
-report.intelligence = analyze(findings);
-report.remediation = remediate(findings);
+report.intelligence = analyze(activeFindings);
+report.remediation = remediate(activeFindings);
 
 /* -----------------------------
-   DECISION
+   DECISION (failOn from config)
 ------------------------------*/
 
-const hasCritical = findings.some(f => f.severity === "CRITICAL");
-const hasHigh = findings.some(f => f.severity === "HIGH");
+const failOnSet = new Set(config.failOn.map(s => s.toUpperCase()));
 
-report.status = hasCritical || hasHigh ? "FAIL" : "PASS";
+const failFindings = BASELINE_MODE
+  ? activeFindings.filter(f => !f.baseline && failOnSet.has(f.severity))
+  : activeFindings.filter(f => failOnSet.has(f.severity));
+
+report.status = failFindings.length > 0 ? "FAIL" : "PASS";
 
 /* -----------------------------
    OUTPUT
@@ -1399,18 +1649,23 @@ console.log("CONFIDENCE:", report.remediation.confidence + "%");
 
 console.log("\nSCANNER STATUS:");
 for (const t of TOOLS) {
-  console.log(`- ${t.padEnd(10)} ${toolStatus[t]}`);
+  const reason = toolSkipReason[t] ? ` (${toolSkipReason[t]})` : "";
+  console.log(`- ${t.padEnd(10)} ${toolStatus[t]}${reason}`);
 }
 
 console.log("\nTOP ISSUES:");
-findings.slice(0, 5).forEach(f =>
-  console.log("-", f.signature, "|", f.severity)
+activeFindings.slice(0, 5).forEach(f =>
+  console.log("-", f.signature, "|", f.severity, f.baseline ? "[baseline]" : "")
 );
 
 console.log("\nRECOMMENDATIONS:");
 report.intelligence.recommendations.forEach(r =>
   console.log("-", r)
 );
+
+if (suppressions.count > 0) {
+  console.log(`\nSUPPRESSED: ${suppressions.count} finding(s) via inline comment`);
+}
 
 if (APPLY) {
   console.log("\nEXECUTED FIXES:");
