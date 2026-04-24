@@ -120,14 +120,15 @@ const outputFile = path.join(outputDir, "secgate-v7-report.json");
 
 const findings = [];
 
-const TOOLS = ["semgrep", "gitleaks", "npm", "osv", "trivy"];
+const TOOLS = ["semgrep", "gitleaks", "npm", "osv", "trivy", "trivyImage"];
 
 const toolStatus = {
   semgrep: "pending",
   gitleaks: "pending",
   npm: "pending",
   osv: "pending",
-  trivy: "pending"
+  trivy: "pending",
+  trivyImage: "pending"
 };
 
 const toolSkipReason = {};
@@ -242,7 +243,7 @@ function addFinding(f) {
       ? "manual"
       : null;
 
-  findings.push({
+  const finding = {
     tool: f.tool,
     type: f.type,
     severity,
@@ -254,7 +255,12 @@ function addFinding(f) {
     endLine: f.endLine ?? null,
     fixable: fixableBy === "auto",
     fixableBy
-  });
+  };
+
+  if (f.scanMode != null) finding.scanMode = f.scanMode;
+  if (f.image != null) finding.image = f.image;
+
+  findings.push(finding);
 }
 
 /* -----------------------------
@@ -519,6 +525,111 @@ function trivy() {
   }
 }
 
+const DOCKERFILE_RE = /^FROM\s+(?:--platform=\S+\s+)?([^\s]+)(?:\s+AS\s+\S+)?$/im;
+const DOCKERFILE_GLOB_RE = /^(Dockerfile|.+\.Dockerfile)$/;
+const SKIP_DIRS = new Set(["node_modules", ".git"]);
+
+function findDockerfiles(dir) {
+  const results = [];
+  function walk(d) {
+    let entries;
+    try { entries = fs.readdirSync(d, { withFileTypes: true }); } catch { return; }
+    for (const e of entries) {
+      if (e.isDirectory()) {
+        if (!SKIP_DIRS.has(e.name) && !e.name.startsWith(".git")) {
+          walk(path.join(d, e.name));
+        }
+      } else if (e.isFile() && DOCKERFILE_GLOB_RE.test(e.name)) {
+        results.push(path.join(d, e.name));
+      }
+    }
+  }
+  walk(dir);
+  return results;
+}
+
+function extractBaseImages(dockerfilePath) {
+  let content;
+  try { content = fs.readFileSync(dockerfilePath, "utf-8"); } catch { return []; }
+  const images = new Set();
+  for (const line of content.split("\n")) {
+    const m = line.match(/^FROM\s+(?:--platform=\S+\s+)?([^\s]+)(?:\s+AS\s+\S+)?$/i);
+    if (m) {
+      const ref = m[1];
+      if (ref.toLowerCase() !== "scratch") images.add(ref);
+    }
+  }
+  return [...images];
+}
+
+function trivyImage() {
+  if (!toolExists("trivy")) { toolStatus.trivyImage = "skipped"; return; }
+
+  const dockerfiles = findDockerfiles(target).filter(f => !f.includes("/test/fixtures"));
+  if (dockerfiles.length === 0) { toolStatus.trivyImage = "skipped"; return; }
+
+  const imageRefs = new Set();
+  for (const df of dockerfiles) {
+    for (const ref of extractBaseImages(df)) {
+      imageRefs.add(ref);
+    }
+  }
+
+  if (imageRefs.size === 0) { toolStatus.trivyImage = "skipped"; return; }
+
+  let anyRan = false;
+  let anyError = false;
+  const before = findings.length;
+
+  for (const imageRef of imageRefs) {
+    const out = runTool("trivy", [
+      "image",
+      "--format", "json",
+      "--quiet",
+      imageRef
+    ], { timeout: 120000 });
+    debug(`trivy image ${imageRef}`, out);
+
+    if (!out.trim()) { anyError = true; continue; }
+
+    try {
+      const data = JSON.parse(out);
+      const results = data.Results || [];
+      anyRan = true;
+
+      for (const r of results) {
+        for (const v of r.Vulnerabilities || []) {
+          addFinding({
+            tool: "trivy",
+            type: "dependency",
+            severity: v.Severity,
+            signature: `trivy-image:${imageRef}:${v.VulnerabilityID}`,
+            message: v.Title || v.Description || v.VulnerabilityID,
+            file: imageRef,
+            line: null,
+            fixableBy: "manual",
+            scanMode: "image",
+            image: imageRef
+          });
+        }
+      }
+    } catch {
+      anyError = true;
+    }
+  }
+
+  if (anyError) {
+    toolStatus.trivyImage = "error";
+  } else if (findings.length > before) {
+    toolStatus.trivyImage = "ran";
+    anyRan = true;
+  } else if (anyRan) {
+    toolStatus.trivyImage = "clean";
+  } else {
+    toolStatus.trivyImage = "error";
+  }
+}
+
 function npmAudit() {
   if (!fs.existsSync(path.join(target, "package.json"))) {
     toolStatus.npm = "skipped";
@@ -543,6 +654,16 @@ function npmAudit() {
       if (json.error.code === "ENOLOCK") {
         toolStatus.npm = "skipped";
         toolSkipReason.npm = "no package-lock.json (run `npm install` to generate)";
+        addFinding({
+          tool: "secgate",
+          type: "policy",
+          severity: "MEDIUM",
+          signature: "no-lockfile",
+          message: "package.json present but no lockfile — supply-chain determinism not guaranteed",
+          file: "package.json",
+          line: null,
+          fixableBy: "manual"
+        });
       } else {
         toolStatus.npm = "error";
       }
@@ -1098,6 +1219,7 @@ gitleaks();
 npmAudit();
 osvScanner();
 trivy();
+trivyImage();
 
 /* -----------------------------
    PROCESS
