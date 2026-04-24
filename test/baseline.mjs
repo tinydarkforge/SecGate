@@ -213,6 +213,32 @@ test("config.baselineFile: custom path used for read/write", () => {
   fs.rmSync(stubDir, { recursive: true, force: true });
 });
 
+// ── loadBaseline: malformed shape warns and treats all findings as net-new ────
+
+test("loadBaseline: malformed baseline shape logs warning, all findings net-new", () => {
+  const d = scratch("malformed-bl");
+  const stubDir = setupScanDir(d, PKG_A);
+
+  fs.writeFileSync(path.join(d, ".secgate-baseline.json"), JSON.stringify({ foo: 1 }));
+
+  let stderr = "";
+  try {
+    execFileSync("node", [bin, d, "--baseline"], {
+      encoding: "utf-8",
+      stdio: "pipe",
+      cwd: d,
+      env: { ...process.env, PATH: `${stubDir}:${process.env.PATH}` }
+    });
+  } catch (e) {
+    stderr = (e.stderr || "").toString();
+  }
+
+  assert(stderr.includes("missing 'findings' array"), "stderr warns about malformed baseline shape");
+
+  fs.rmSync(d, { recursive: true, force: true });
+  fs.rmSync(stubDir, { recursive: true, force: true });
+});
+
 // ── --baseline with no baseline file treats all as net-new ────────────────────
 
 test("--baseline with no baseline file: all findings are net-new", () => {
