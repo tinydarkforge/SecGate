@@ -1,6 +1,10 @@
+```text
+░▒▓█ SECGATE · OPEN-CORE BOUNDARY █▓▒░
+```
+
 # Open-Core Boundary
 
-This document defines what stays MIT-licensed and free in SecGate forever, and what may become paid extensions in the future. It exists to be explicit before monetization happens, not after.
+This document defines what stays MIT-licensed and free in SecGate forever, and what may become paid extensions in the future. It exists to be explicit **before** monetization happens, not after.
 
 ---
 

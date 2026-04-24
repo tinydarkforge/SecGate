@@ -1,6 +1,10 @@
+```text
+░▒▓█ SECGATE · CONTRIBUTING █▓▒░
+```
+
 # Contributing to SecGate
 
-Thanks for your interest. SecGate is a security engine; contributions that improve detection fidelity, reduce false positives, or extend CI integration are especially welcome.
+Thanks for your interest. SecGate is a security engine — contributions that improve detection fidelity, reduce false positives, or extend CI integration are especially welcome.
 
 ## Ground rules
 

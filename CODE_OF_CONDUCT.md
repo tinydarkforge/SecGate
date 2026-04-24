@@ -1,3 +1,7 @@
+```text
+░▒▓█ SECGATE · CODE OF CONDUCT █▓▒░
+```
+
 # Contributor Covenant Code of Conduct
 
 ## Our Pledge
