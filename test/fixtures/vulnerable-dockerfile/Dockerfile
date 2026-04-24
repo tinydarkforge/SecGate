@@ -1,3 +1,5 @@
-FROM ubuntu:18.04
-USER root
-RUN apt-get update
+FROM node:12-alpine
+WORKDIR /app
+COPY . .
+RUN npm install
+CMD ["node", "index.js"]
