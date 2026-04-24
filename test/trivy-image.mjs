@@ -209,8 +209,34 @@ test("node_modules Dockerfiles are not walked", () => {
   const emptyResult = JSON.stringify({ Results: [] });
   const { report } = runWithStubs(d, { trivy: emptyResult });
 
-  // No Dockerfiles found outside node_modules → trivyImage skipped
   assertEq(report.tools.trivyImage, "skipped", "trivyImage skipped when Dockerfile only in node_modules");
+  fs.rmSync(d, { recursive: true, force: true });
+});
+
+test("scanners.trivy: false in config → trivyImage skipped", () => {
+  const d = scratchDir("img-trivy-disabled");
+  fs.writeFileSync(path.join(d, "Dockerfile"), "FROM python:3.8\n");
+  fs.writeFileSync(path.join(d, ".secgate.config.json"), JSON.stringify({
+    scanners: { trivy: false }
+  }));
+
+  const emptyResult = JSON.stringify({ Results: [] });
+  const { report } = runWithStubs(d, { trivy: emptyResult });
+
+  assertEq(report.tools.trivyImage, "skipped", "trivyImage skipped when trivy disabled in config");
+  fs.rmSync(d, { recursive: true, force: true });
+});
+
+test("user repo with test/fixtures/Dockerfile is scanned (no false-positive path skip)", () => {
+  const d = scratchDir("img-user-fixtures");
+  const fixtureDir = path.join(d, "test", "fixtures");
+  fs.mkdirSync(fixtureDir, { recursive: true });
+  fs.writeFileSync(path.join(fixtureDir, "Dockerfile"), "FROM alpine:3.18\n");
+
+  const emptyResult = JSON.stringify({ Results: [] });
+  const { report } = runWithStubs(d, { trivy: emptyResult });
+
+  assertEq(report.tools.trivyImage, "clean", "trivyImage scans Dockerfiles in user test/fixtures dir");
   fs.rmSync(d, { recursive: true, force: true });
 });
 

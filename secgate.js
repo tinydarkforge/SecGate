@@ -208,7 +208,7 @@ function confirmApplyOrExit() {
     );
     let answer = "";
     try {
-      const buf = Buffer.alloc(8);
+      const buf = Buffer.alloc(64);
       const n = fs.readSync(0, buf, 0, buf.length, null);
       answer = buf.slice(0, n).toString("utf-8").trim().toLowerCase();
     } catch {
