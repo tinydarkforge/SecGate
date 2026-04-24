@@ -298,6 +298,46 @@ test("--output-dir writes reports to the given directory", () => {
   }
 });
 
+test("--format sarif writes .sarif.json alongside JSON+HTML", () => {
+  const fixture = path.join(repoRoot, "test/fixtures/clean");
+  if (!fs.existsSync(fixture)) {
+    console.log("    (skipped — clean fixture not present)");
+    passed++;
+    return;
+  }
+  run([fixture, "--format", "sarif"], { cwd: fixture });
+  const sarifPath = path.join(fixture, "clean.sarif.json");
+  const jsonPath = path.join(fixture, "secgate-v7-report.json");
+  const htmlPath = path.join(fixture, "clean.html");
+  if (!fs.existsSync(sarifPath)) throw new Error(`missing ${sarifPath}`);
+  const sarif = JSON.parse(fs.readFileSync(sarifPath, "utf-8"));
+  assertEq(sarif.version, "2.1.0", "sarif.version");
+  assertContains(sarif.$schema, "sarif", "$schema");
+  if (Array.isArray(sarif.runs)) {
+    assertEq(sarif.runs.length, 5, "5 runs entries");
+  }
+  try { fs.unlinkSync(sarifPath); } catch {}
+  try { fs.unlinkSync(jsonPath); } catch {}
+  try { fs.unlinkSync(htmlPath); } catch {}
+});
+
+test("--format sarif does not suppress JSON+HTML output", () => {
+  const fixture = path.join(repoRoot, "test/fixtures/clean");
+  if (!fs.existsSync(fixture)) {
+    console.log("    (skipped — clean fixture not present)");
+    passed++;
+    return;
+  }
+  run([fixture, "--format", "sarif"], { cwd: fixture });
+  const jsonPath = path.join(fixture, "secgate-v7-report.json");
+  const htmlPath = path.join(fixture, "clean.html");
+  if (!fs.existsSync(jsonPath)) throw new Error("JSON report missing when --format sarif");
+  if (!fs.existsSync(htmlPath)) throw new Error("HTML report missing when --format sarif");
+  try { fs.unlinkSync(jsonPath); } catch {}
+  try { fs.unlinkSync(htmlPath); } catch {}
+  try { fs.unlinkSync(path.join(fixture, "clean.sarif.json")); } catch {}
+});
+
 console.log("-------------------");
 console.log(`${passed} passed, ${failed} failed`);
 process.exit(failed === 0 ? 0 : 1);

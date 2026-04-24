@@ -1,0 +1,91 @@
+# Example workflow: SecGate security gate with SARIF upload and artifact archival.
+#
+# NOTE: GitHub Actions are currently disabled for this repository.
+# This file is a reference implementation — enable Actions in repo settings to activate it.
+#
+# Usage in your own repository:
+#   uses: tinydarkforge/SecGate/.github/actions/secgate@main
+#
+# For a pinned SHA (recommended for production):
+#   uses: tinydarkforge/SecGate/.github/actions/secgate@<full-sha>
+
+name: SecGate Security Gate (example)
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+  schedule:
+    # Run nightly at 02:00 UTC
+    - cron: "0 2 * * *"
+  workflow_dispatch:
+
+jobs:
+  secgate:
+    name: Security Gate
+    runs-on: ubuntu-latest
+    permissions:
+      # Required for uploading SARIF results to GitHub Code Scanning.
+      security-events: write
+      # Required to check out the repository.
+      contents: read
+      # Required to post PR comments (optional).
+      pull-requests: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # Install optional external scanners.
+      # SecGate skips any tool that is not on PATH — remove steps you don't need.
+      - name: Install Semgrep
+        run: pip install semgrep --quiet
+
+      - name: Install Gitleaks
+        run: |
+          curl -sSL https://github.com/gitleaks/gitleaks/releases/latest/download/gitleaks_linux_x64.tar.gz \
+            | tar -xz -C /usr/local/bin gitleaks
+
+      - name: Install osv-scanner
+        run: |
+          curl -sSL https://github.com/google/osv-scanner/releases/latest/download/osv-scanner_linux_amd64 \
+            -o /usr/local/bin/osv-scanner && chmod +x /usr/local/bin/osv-scanner
+
+      - name: Install Trivy
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: "rootfs"
+          scan-ref: "."
+          skip-setup-trivy: false
+          exit-code: "0"
+
+      # Run SecGate — emits JSON, HTML, and SARIF.
+      - name: Run SecGate
+        id: secgate
+        uses: tinydarkforge/SecGate/.github/actions/secgate@main
+        with:
+          target: "."
+          apply: "false"
+          fail-on: "critical,high"
+          format: "json,html,sarif"
+
+      # Upload HTML + JSON as build artifacts (always, even on failure).
+      - name: Upload HTML + JSON report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: secgate-report-${{ github.run_number }}
+          path: |
+            secgate-v7-report.json
+            *.html
+          retention-days: 30
+
+      # Upload SARIF to GitHub Code Scanning.
+      # Requires security-events: write permission and Code Scanning enabled on the repo.
+      - name: Upload SARIF to Code Scanning
+        if: always() && steps.secgate.outputs.sarif-path != ''
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: ${{ steps.secgate.outputs.sarif-path }}
+          category: secgate

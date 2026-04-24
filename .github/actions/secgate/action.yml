@@ -1,0 +1,84 @@
+name: SecGate Security Gate
+description: Run SecGate security scanners (Semgrep, Gitleaks, osv-scanner, Trivy, npm audit) and optionally upload SARIF to GitHub Code Scanning.
+author: TinyDarkForge
+
+branding:
+  icon: shield
+  color: red
+
+inputs:
+  target:
+    description: Directory to scan (relative to workspace root)
+    required: false
+    default: "."
+  apply:
+    description: Execute fixable remediations (npm audit fix)
+    required: false
+    default: "false"
+  fail-on:
+    description: Comma-separated severity levels that cause a non-zero exit (e.g. critical,high)
+    required: false
+    default: "critical,high"
+  format:
+    description: Output formats — comma-separated list of json, html, sarif
+    required: false
+    default: "json,html"
+
+outputs:
+  report-path:
+    description: Path to the JSON report file (secgate-v7-report.json)
+    value: ${{ steps.run-secgate.outputs.report-path }}
+  sarif-path:
+    description: Path to the SARIF 2.1.0 report file (only set when format includes sarif)
+    value: ${{ steps.run-secgate.outputs.sarif-path }}
+
+runs:
+  using: composite
+  steps:
+    - name: Set up Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: "20"
+
+    - name: Run SecGate
+      id: run-secgate
+      shell: bash
+      env:
+        SECGATE_TARGET: ${{ inputs.target }}
+        SECGATE_APPLY: ${{ inputs.apply }}
+        SECGATE_FORMAT: ${{ inputs.format }}
+        SECGATE_FAIL_ON: ${{ inputs.fail-on }}
+      run: |
+        ARGS=("$SECGATE_TARGET")
+        if [ "$SECGATE_APPLY" = "true" ]; then
+          ARGS+=("--apply")
+        fi
+        ARGS+=("--format" "$SECGATE_FORMAT")
+
+        TARGET_ABS="$(realpath "$SECGATE_TARGET")"
+        REPO_NAME="$(basename "$TARGET_ABS")"
+
+        npx --yes @tinydarkforge/secgate "${ARGS[@]}" || SECGATE_EXIT=$?
+
+        echo "report-path=secgate-v7-report.json" >> "$GITHUB_OUTPUT"
+
+        if echo "$SECGATE_FORMAT" | grep -q "sarif"; then
+          echo "sarif-path=${REPO_NAME}.sarif.json" >> "$GITHUB_OUTPUT"
+        fi
+
+        # Apply fail-on filter: only exit non-zero for configured severities.
+        if [ -f secgate-v7-report.json ]; then
+          IFS=',' read -ra LEVELS <<< "$SECGATE_FAIL_ON"
+          BLOCK=0
+          for level in "${LEVELS[@]}"; do
+            LEVEL_UPPER="$(echo "$level" | tr '[:lower:]' '[:upper:]' | tr -d ' ')"
+            COUNT="$(node -e "const r=JSON.parse(require('fs').readFileSync('secgate-v7-report.json'));console.log(r.summary['${LEVEL_UPPER,,}']||0)")"
+            if [ "$COUNT" -gt 0 ]; then
+              BLOCK=1
+              echo "::error::SecGate found $COUNT $LEVEL_UPPER finding(s)"
+            fi
+          done
+          exit $BLOCK
+        fi
+
+        exit "${SECGATE_EXIT:-0}"
