@@ -28,13 +28,22 @@ Usage:
   secgate [target] [options]
 
 Arguments:
-  target          Directory to scan (default: current directory)
+  target              Directory to scan (default: current directory)
 
 Options:
-  --apply         Execute fixable remediations (default: dry-run)
-  --debug         Print raw scanner output
-  --version, -v   Print version and exit
-  --help, -h      Show this help
+  --apply             Execute fixable remediations (default: dry-run).
+                      Requires SECGATE_CONFIRM_APPLY=1 or an interactive
+                      y/n confirmation. Runs npm with --ignore-scripts.
+  --output-dir <dir>  Directory to write report files (default: target)
+  --strip-paths       Relativize target to repo basename in the report.
+                      Auto-enabled when CI=true.
+  --debug             Print raw scanner output
+  --version, -v       Print version and exit
+  --help, -h          Show this help
+
+Environment:
+  SECGATE_CONFIRM_APPLY=1   Non-interactive confirmation for --apply
+  CI=true                   Auto-enables --strip-paths
 
 Exit codes:
   0  PASS — no CRITICAL or HIGH findings
@@ -48,9 +57,19 @@ Output:
   process.exit(0);
 }
 
+function argValue(flag) {
+  const i = argv.indexOf(flag);
+  if (i === -1) return null;
+  const v = argv[i + 1];
+  if (!v || v.startsWith("--")) return null;
+  return v;
+}
+
 const rawTarget = argv[0] && !argv[0].startsWith("--") ? argv[0] : ".";
 const APPLY = argv.includes("--apply");
 const DEBUG = argv.includes("--debug");
+const STRIP_PATHS = argv.includes("--strip-paths") || process.env.CI === "true";
+const OUTPUT_DIR_FLAG = argValue("--output-dir");
 
 const target = path.resolve(rawTarget);
 
@@ -63,7 +82,37 @@ if (!fs.statSync(target).isDirectory()) {
   process.exit(2);
 }
 
-const outputFile = "secgate-v7-report.json";
+const outputDir = OUTPUT_DIR_FLAG
+  ? path.resolve(OUTPUT_DIR_FLAG)
+  : target;
+
+if (!OUTPUT_DIR_FLAG) {
+  // Default output must live under the target — never leak to cwd.
+  if (process.cwd() !== target) {
+    console.error(
+      `Warning: cwd (${process.cwd()}) differs from target (${target}); ` +
+        `writing reports to target. Use --output-dir to override.`
+    );
+  }
+} else {
+  if (!fs.existsSync(outputDir)) {
+    try {
+      fs.mkdirSync(outputDir, { recursive: true });
+    } catch (e) {
+      console.error(`Cannot create --output-dir ${outputDir}: ${e.message}`);
+      process.exit(2);
+    }
+  }
+  if (!fs.statSync(outputDir).isDirectory()) {
+    console.error(`--output-dir is not a directory: ${outputDir}`);
+    process.exit(2);
+  }
+}
+
+const repoName = path.basename(path.resolve(target));
+const reportTarget = STRIP_PATHS ? repoName : target;
+
+const outputFile = path.join(outputDir, "secgate-v7-report.json");
 
 /* -----------------------------
    STATE
@@ -86,7 +135,7 @@ const toolSkipReason = {};
 const report = {
   version: pkg.version,
   timestamp: new Date().toISOString(),
-  target,
+  target: reportTarget,
   mode: APPLY ? "apply" : "dry-run",
   status: "PASS",
 
@@ -109,8 +158,34 @@ const report = {
     executed: [],
     blocked: [],
     confidence: 100
-  }
+  },
+
+  auditLog: []
 };
+
+function auditLog(event, detail) {
+  const entry = {
+    timestamp: new Date().toISOString(),
+    event,
+    target: reportTarget,
+    ...detail
+  };
+  report.auditLog.push(entry);
+  console.error(`[audit] ${JSON.stringify(entry)}`);
+}
+
+function stripAbsolutePaths(s) {
+  if (!STRIP_PATHS || typeof s !== "string") return s;
+  // Replace any occurrence of the absolute target path with the repo basename.
+  const abs = target;
+  let out = s.split(abs).join(repoName);
+  // Also scrub parent dir paths that might appear via tools.
+  const parent = path.dirname(abs);
+  if (parent && parent !== "/" && parent !== ".") {
+    out = out.split(parent + path.sep).join("");
+  }
+  return out;
+}
 
 /* -----------------------------
    UTILS
@@ -563,8 +638,12 @@ function patch(f) {
   if (f.tool === "npm") {
     return {
       action: "npm audit fix",
-      cmd: `npm audit fix (cwd=${target})`,
-      exec: { binary: "npm", args: ["audit", "fix"], cwd: target }
+      cmd: `npm audit fix --ignore-scripts (cwd=${reportTarget})`,
+      exec: {
+        binary: "npm",
+        args: ["audit", "fix", "--ignore-scripts"],
+        cwd: target
+      }
     };
   }
 
@@ -621,11 +700,30 @@ function remediate(findings) {
       staged.push(p);
 
       if (APPLY) {
+        auditLog("apply_exec", {
+          tool: f.tool,
+          signature: f.signature,
+          binary: p.exec.binary,
+          args: p.exec.args,
+          cwd: p.exec.cwd
+        });
         try {
-          runTool(p.exec.binary, p.exec.args, { cwd: p.exec.cwd });
+          runTool(p.exec.binary, p.exec.args, {
+            cwd: p.exec.cwd,
+            env: { ...process.env, npm_config_ignore_scripts: "true" }
+          });
           executed.push(p.action);
-        } catch {
+          auditLog("apply_ok", {
+            tool: f.tool,
+            signature: f.signature
+          });
+        } catch (e) {
           blocked.push(p);
+          auditLog("apply_fail", {
+            tool: f.tool,
+            signature: f.signature,
+            error: String(e && e.message ? e.message : e)
+          });
         }
       }
     }
@@ -952,10 +1050,48 @@ function renderHtml(rep, repoName) {
    PIPELINE
 ------------------------------*/
 
+function confirmApplyOrExit() {
+  if (!APPLY) return;
+  if (process.env.SECGATE_CONFIRM_APPLY === "1") {
+    auditLog("apply_confirmed", { via: "env" });
+    return;
+  }
+  if (process.stdin.isTTY) {
+    process.stderr.write(
+      `\nSecGate --apply will execute remediations against:\n  ${target}\n` +
+        `npm invocations run with --ignore-scripts. Proceed? [y/N] `
+    );
+    let answer = "";
+    try {
+      const buf = Buffer.alloc(8);
+      const n = fs.readSync(0, buf, 0, buf.length, null);
+      answer = buf.slice(0, n).toString("utf-8").trim().toLowerCase();
+    } catch {
+      answer = "";
+    }
+    if (answer !== "y" && answer !== "yes") {
+      console.error("Aborted: --apply not confirmed.");
+      process.exit(2);
+    }
+    auditLog("apply_confirmed", { via: "tty" });
+    return;
+  }
+  console.error(
+    "Refusing to run --apply without confirmation. " +
+      "Set SECGATE_CONFIRM_APPLY=1 or run in a TTY."
+  );
+  process.exit(2);
+}
+
 console.log("\nSEC GATE v7 - AI SOC ENGINE");
-console.log("Target:", target);
+console.log("Target:", reportTarget);
 console.log("Mode:", APPLY ? "APPLY" : "DRY RUN");
 console.log("--------------------------------");
+
+confirmApplyOrExit();
+if (APPLY) {
+  auditLog("apply_start", { outputDir });
+}
 
 semgrep();
 gitleaks();
@@ -1019,10 +1155,41 @@ if (APPLY) {
   report.remediation.executed.forEach(e => console.log("-", e));
 }
 
+if (STRIP_PATHS) {
+  for (const f of report.findings) {
+    if (f.signature) f.signature = stripAbsolutePaths(f.signature);
+    if (f.message) f.message = stripAbsolutePaths(f.message);
+    if (f.file) f.file = stripAbsolutePaths(f.file);
+  }
+  for (const r of report.intelligence.reasoning || []) {
+    if (r.issue) r.issue = stripAbsolutePaths(r.issue);
+    if (r.why) r.why = stripAbsolutePaths(r.why);
+  }
+  for (const p of report.remediation.plan || []) {
+    if (p.issue) p.issue = stripAbsolutePaths(p.issue);
+    if (p.patch) {
+      if (p.patch.cmd) p.patch.cmd = stripAbsolutePaths(p.patch.cmd);
+      if (p.patch.exec && p.patch.exec.cwd) {
+        p.patch.exec.cwd = stripAbsolutePaths(p.patch.exec.cwd);
+      }
+    }
+  }
+  for (const p of report.remediation.stagedChanges || []) {
+    if (p.cmd) p.cmd = stripAbsolutePaths(p.cmd);
+    if (p.exec && p.exec.cwd) p.exec.cwd = stripAbsolutePaths(p.exec.cwd);
+  }
+  for (const p of report.remediation.blocked || []) {
+    if (p.cmd) p.cmd = stripAbsolutePaths(p.cmd);
+    if (p.exec && p.exec.cwd) p.exec.cwd = stripAbsolutePaths(p.exec.cwd);
+  }
+  for (const a of report.auditLog || []) {
+    if (a.cwd) a.cwd = stripAbsolutePaths(a.cwd);
+  }
+}
+
 fs.writeFileSync(outputFile, JSON.stringify(report, null, 2));
 
-const repoName = path.basename(path.resolve(target));
-const htmlFile = `${repoName}.html`;
+const htmlFile = path.join(outputDir, `${repoName}.html`);
 fs.writeFileSync(htmlFile, renderHtml(report, repoName));
 
 console.log("\nReport saved:", outputFile);

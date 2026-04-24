@@ -85,7 +85,7 @@ sudo ln -sf "$(pwd)/secgate.js" /usr/local/bin/secgate
 # Scan current directory (dry-run, default)
 secgate .
 
-# Scan with auto-remediation
+# Scan with auto-remediation (see warning below)
 secgate . --apply
 
 # Scan with debug output
@@ -93,6 +93,12 @@ secgate . --debug
 
 # Scan specific path
 secgate /path/to/project
+
+# Write reports to a custom directory (default: the target)
+secgate /path/to/project --output-dir /tmp/reports
+
+# Strip absolute paths from the report (auto-on when CI=true)
+secgate /path/to/project --strip-paths
 
 # Show version
 secgate --version
@@ -105,6 +111,23 @@ Exit codes:
 - `0` — PASS (no CRITICAL or HIGH findings)
 - `1` — FAIL (CRITICAL or HIGH findings present)
 - `2` — invalid target or CLI error
+
+---
+
+## Security: `--apply` in untrusted repos
+
+`--apply` executes remediations (`npm audit fix`) inside the scanned repo. Treat this as code execution against the target — only use it on code you trust.
+
+Hardening:
+- SecGate passes `--ignore-scripts` to every npm invocation under `--apply`, so malicious `preinstall`/`postinstall` scripts in the target repo's `package.json` or its dependencies are not executed.
+- `--apply` is gated: it refuses to run unless either `SECGATE_CONFIRM_APPLY=1` is set (for CI/non-interactive use) or the user confirms `y` at an interactive TTY prompt.
+- Every `--apply` execution is recorded in the report's `auditLog` field and mirrored to stderr with timestamp + target.
+
+Guidance:
+- **Do not run `--apply` against untrusted or newly cloned third-party repos.** Run scans in dry-run mode first, review findings, then decide.
+- In CI, prefer dry-run (`secgate .`) and rely on the exit code to gate the pipeline. Only use `--apply` with `SECGATE_CONFIRM_APPLY=1` inside an isolated, ephemeral runner.
+- Report files default to the target directory. Use `--output-dir` to redirect explicitly; a warning is printed to stderr when `cwd !== target`.
+- In CI, `--strip-paths` is auto-enabled to prevent host paths from leaking into uploaded artifacts.
 
 ---
 
@@ -190,14 +213,22 @@ Each run writes two files:
       "patch": {
         "action": "...",
         "cmd": "display string or null",
-        "exec": { "binary": "npm", "args": ["audit", "fix"], "cwd": "..." }
+        "exec": { "binary": "npm", "args": ["audit", "fix", "--ignore-scripts"], "cwd": "..." }
       }
     }],
     "stagedChanges": [],
     "executed": [],
     "blocked": [],
     "confidence": 100
-  }
+  },
+  "auditLog": [
+    {
+      "timestamp": "ISO 8601",
+      "event": "apply_start | apply_confirmed | apply_exec | apply_ok | apply_fail",
+      "target": "target path or repo basename (if --strip-paths)",
+      "...": "event-specific fields"
+    }
+  ]
 }
 ```
 
