@@ -1,0 +1,68 @@
+# ADR-0001: Scanner Stack
+
+- **Status:** Accepted
+- **Date:** 2026-04-23
+- **Deciders:** TinyDarkForge
+
+## Context
+
+SecGate's value is orchestration. The stack of upstream scanners defines what SecGate actually covers. The choice needs to balance:
+
+- **Coverage** — SAST + SCA + secrets + IaC + license, the five CI-relevant categories.
+- **Cost** — must be free for commercial use.
+- **Stability** — boring, widely adopted tools with long track records.
+- **No vendor lock-in** — each scanner must be independently installable and replaceable.
+- **JSON output** — parseable without screen-scraping.
+
+## Decision
+
+**We will use Semgrep + Gitleaks + npm audit + osv-scanner + Trivy as the default scanner stack.**
+
+- **Semgrep** — SAST. OSS ruleset, multi-language, stable JSON output.
+- **Gitleaks** — secrets. Purpose-built, fast, handles git history.
+- **npm audit** — Node SCA. Ships with npm; zero install cost when Node is present.
+- **osv-scanner** — polyglot SCA. Google-maintained, uses OSV.dev (open advisory DB).
+- **Trivy** — IaC + license. Aqua Security, huge policy bundle, active development.
+
+## Consequences
+
+### Positive
+
+- Every category covered by a mature, widely adopted tool.
+- All five are free for commercial use (Apache 2.0 / MIT / LGPL rules).
+- Each is individually installable via Homebrew / pip / curl-install scripts.
+- JSON output is stable and documented for all five.
+- Defense in depth: npm audit + osv-scanner both cover Node dependencies from different advisory sources.
+
+### Negative
+
+- Five binaries to install. Mitigated by graceful skip when absent, documented install commands, and Homebrew Bundle / Dockerfile examples.
+- No container image scanning today (Trivy `fs` mode only). Tracked in #36.
+- Semgrep's OSS ruleset is narrower than Semgrep Pro — organizations wanting proprietary rules need to BYO.
+
+### Neutral
+
+- Future scanners can be added if they meet criteria in `coverage.md`. The bundle is deliberately small.
+
+## Alternatives Considered
+
+### Snyk CLI
+Rejected. Requires free-tier signup, has seat caps, and phones home. Violates our "no account, no telemetry" principle (ADR-0005). Also requires a proprietary database — not self-hostable.
+
+### CodeQL
+Rejected. Excellent SAST but (1) free tier is GitHub-only, (2) heavy — minutes per scan, (3) license restricts commercial use outside GitHub repos.
+
+### Grype + Syft (replacement for osv-scanner)
+Considered. Anchore's tools are strong but overlap heavily with Trivy for containers. osv-scanner has better polyglot lockfile coverage for CI-stage SCA. We can revisit if osv-scanner becomes unmaintained.
+
+### Bandit / ESLint plugins (replace Semgrep)
+Rejected. Single-language, thin coverage. Semgrep subsumes them with broader language support.
+
+### Building a single unified scanner
+Rejected. Months of work, no unique value vs orchestration, and we'd still want to replace Semgrep/Gitleaks rules rather than rewrite them.
+
+## References
+
+- [`docs/coverage.md`](../coverage.md)
+- [`docs/comparison.md`](../comparison.md)
+- Issue #36 — container image scanning plan
