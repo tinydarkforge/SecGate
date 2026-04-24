@@ -4,6 +4,17 @@ on:
   push:
     tags:
       - "v*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Tag to build (e.g. v0.2.5) — must already exist in the repo"
+        required: true
+        type: string
+      skip_npm:
+        description: "Skip npm publish (use for re-runs of already-published versions)"
+        required: false
+        default: false
+        type: boolean
 
 permissions: {}
 
@@ -24,6 +35,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag || '' }}
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -32,9 +45,11 @@ jobs:
           registry-url: "https://registry.npmjs.org"
 
       - name: Verify tag matches package.json version
+        env:
+          EFFECTIVE_TAG: ${{ inputs.tag || github.ref_name }}
         run: |
           PKG_VERSION="$(node -p "require('./package.json').version")"
-          TAG_VERSION="${GITHUB_REF_NAME#v}"
+          TAG_VERSION="${EFFECTIVE_TAG#v}"
           if [ "$PKG_VERSION" != "$TAG_VERSION" ]; then
             echo "Tag $TAG_VERSION does not match package.json version $PKG_VERSION"
             exit 1
@@ -45,8 +60,10 @@ jobs:
 
       - name: Generate CycloneDX SBOM
         id: sbom
+        env:
+          EFFECTIVE_TAG: ${{ inputs.tag || github.ref_name }}
         run: |
-          SBOM_NAME="secgate-${GITHUB_REF_NAME#v}.sbom.cdx.json"
+          SBOM_NAME="secgate-${EFFECTIVE_TAG#v}.sbom.cdx.json"
           npm sbom --sbom-format cyclonedx --sbom-set-name "@tinydarkforge/secgate" > "$SBOM_NAME"
           if [ ! -s "$SBOM_NAME" ]; then
             echo "SBOM generation failed or produced empty file"
@@ -56,10 +73,12 @@ jobs:
 
       - name: Pack release tarball
         id: pack
+        env:
+          EFFECTIVE_TAG: ${{ inputs.tag || github.ref_name }}
         run: |
           npm pack
           TARBALL=$(ls tinydarkforge-secgate-*.tgz | head -n1)
-          RELEASE_NAME="secgate-${GITHUB_REF_NAME#v}.tgz"
+          RELEASE_NAME="secgate-${EFFECTIVE_TAG#v}.tgz"
           mv "$TARBALL" "$RELEASE_NAME"
           echo "tarball_name=$RELEASE_NAME" >> "$GITHUB_OUTPUT"
 
@@ -96,7 +115,7 @@ jobs:
     uses: slsa-framework/slsa-github-generator/.github/workflows/generator_generic_slsa3.yml@v2.0.0
     with:
       base64-subjects: ${{ needs.build.outputs.provenance_subjects }}
-      provenance-name: secgate-${{ github.ref_name }}.intoto.jsonl
+      provenance-name: secgate-${{ inputs.tag || github.ref_name }}.intoto.jsonl
       upload-assets: false
 
   sign-and-release:
@@ -188,8 +207,8 @@ jobs:
       - name: Create GitHub Release and upload assets
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ github.ref_name }}
-          name: ${{ github.ref_name }}
+          tag_name: ${{ inputs.tag || github.ref_name }}
+          name: ${{ inputs.tag || github.ref_name }}
           generate_release_notes: true
           fail_on_unmatched_files: true
           files: |
@@ -207,6 +226,7 @@ jobs:
   publish-npm:
     name: npm publish (provenance)
     needs: [sign-and-release]
+    if: ${{ !inputs.skip_npm }}
     runs-on: ubuntu-latest
     permissions:
       contents: read

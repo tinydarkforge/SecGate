@@ -20,6 +20,7 @@
   <img alt="node" src="https://img.shields.io/badge/node-%E2%89%A518-00cc66.svg?style=flat-square&labelColor=0a0a0a">
   <img alt="provenance" src="https://img.shields.io/badge/npm%20provenance-signed-00cc66.svg?style=flat-square&labelColor=0a0a0a">
   <a href="SECURITY.md"><img alt="security" src="https://img.shields.io/badge/security-policy-00cc66.svg?style=flat-square&labelColor=0a0a0a"></a>
+  <a href="https://github.com/tinydarkforge/SecGate/actions/workflows/ci.yml"><img alt="self-scan" src="https://github.com/tinydarkforge/SecGate/actions/workflows/ci.yml/badge.svg?branch=main"></a>
 </p>
 
 > **SecGate** is a tiny security gate for CI/CD. Runs **Semgrep, Gitleaks, osv-scanner, Trivy, and npm audit** in one command, normalizes findings into one report, fails the pipeline on CRITICAL or HIGH. No account. No telemetry. Local files only.
@@ -508,6 +509,7 @@ The `riskScore` in the report is the sum of these weights across all findings. T
 
 | Doc                                                    | What's in it                                                                   |
 |--------------------------------------------------------|--------------------------------------------------------------------------------|
+| [`CHANGELOG.md`](CHANGELOG.md)                         | Version history — Added / Changed / Fixed / Security per release               |
 | [`OPEN-CORE.md`](OPEN-CORE.md)                         | OSS core boundary and paid extension roadmap                                   |
 | [`docs/comparison.md`](docs/comparison.md)             | Feature matrix vs Snyk / Trivy / Semgrep / Aikido                              |
 | [`docs/coverage.md`](docs/coverage.md)                 | Scanner-to-category matrix, explicit gaps                                      |
