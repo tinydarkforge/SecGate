@@ -1,44 +1,60 @@
 # SecGate
 
-Tiny open-source security gate for CI/CD pipelines.
+Scan orchestrator for CI/CD pipelines. Runs Semgrep, Gitleaks, osv-scanner, Trivy, and npm audit in one command, normalizes findings into a single report, and blocks the pipeline on critical issues.
 
-Orchestrates [Semgrep](https://semgrep.dev), [Gitleaks](https://github.com/gitleaks/gitleaks), [osv-scanner](https://github.com/google/osv-scanner), [Trivy](https://github.com/aquasecurity/trivy), and `npm audit` — aggregates findings, scores risk, generates fix plans, renders a premium HTML report with per-scanner tabs, and blocks pipelines on critical issues.
-
-> **Status:** Early release. Published with [npm provenance](https://docs.npmjs.com/generating-provenance-statements). See [SECURITY.md](SECURITY.md) to report vulnerabilities.
+> **Status:** Early release (v0.2.0). Published with [npm provenance](https://docs.npmjs.com/generating-provenance-statements). See [SECURITY.md](SECURITY.md) to report vulnerabilities.
 
 ---
 
-## Features
+## What it does today
 
-**Multi-layer scanning**
-- Semgrep — static code analysis (SAST)
-- Gitleaks — secret and credential detection
-- npm audit — dependency vulnerability scanning (when `package.json` present)
-- osv-scanner — polyglot SCA (npm, PyPI, Go, Cargo, Maven, RubyGems, Packagist, NuGet, Pub)
-- Trivy — IaC misconfiguration + license scanning (Terraform, Kubernetes, Dockerfile, CloudFormation)
+SecGate wraps five existing open-source scanners, runs them against a directory, and produces:
 
-**Risk intelligence**
-- Weighted scoring: CRITICAL=10, HIGH=6, MEDIUM=3, LOW=1
-- Attack surface classification by finding type
-- Exploitability reasoning and prioritized recommendations
+- One normalized JSON report across all scanners
+- One self-contained HTML report with per-scanner tabs
+- One SARIF 2.1.0 file for GitHub Code Scanning upload
+- Exit code 1 when CRITICAL or HIGH findings are found — blocks CI
 
-**Remediation engine**
-- Auto-generated fix plans per finding
-- Confidence scoring
-- Dry-run by default; `--apply` executes fixable remediations (`npm audit fix`)
+It does not run its own analysis engine. Every finding originates from one of the five underlying tools. SecGate's value is the orchestration, normalization, and single exit code.
 
-**CI/CD integration**
-- Exit code `0` — PASS (no CRITICAL or HIGH findings)
-- Exit code `1` — FAIL (CRITICAL or HIGH findings present)
-- JSON report output (`secgate-v7-report.json`)
-- Premium self-contained HTML report (`<repo-name>.html`) — dark-mode, zero external assets
-- Works in GitHub Actions, GitLab CI, Jenkins
+---
+
+## Scanners
+
+- **Semgrep** — static code analysis (SAST)
+- **Gitleaks** — secret and credential detection
+- **npm audit** — Node dependency vulnerabilities (when `package.json` present)
+- **osv-scanner** — polyglot SCA (npm, PyPI, Go, Cargo, Maven, RubyGems, Packagist, NuGet, Pub)
+- **Trivy** — IaC misconfiguration + license scanning (Terraform, Kubernetes, Dockerfile, CloudFormation)
+
+Missing tools are skipped and noted in the report. No scanner is required.
+
+---
+
+## Positioning
+
+SecGate is not a SOC platform, a compliance tool, or a vulnerability management system. It is a CI gate that aggregates scanner output and fails the build when something critical is found.
+
+Nearest alternatives:
+
+- **Trivy standalone** — better for container image scanning; no SAST or secrets bundling
+- **Semgrep OSS** — better custom SAST rules; no SCA or secrets
+- **Snyk** — managed vulnerability DB, triage UX, Jira sync; requires account, costs money
+- **Aikido** — bundled SaaS alternative; requires account, telemetry
+
+SecGate's niche: zero-config orchestration, no account, no telemetry, local output only, MIT license. If you need SaaS-grade triage, dashboards, or compliance workflow, Snyk or Aikido are the right buy. Full comparison: [`docs/comparison.md`](docs/comparison.md).
+
+---
+
+## Product vision
+
+SecGate will become the open-source input layer for a broader security workflow. The core CLI — scan orchestration, SARIF output, baseline/suppression, HTML report — stays MIT-licensed and free. Future paid extensions will add hosted dashboards, org-wide policy management, compliance evidence packs, and multi-repo aggregation for teams that need more than a local gate. Those features do not exist today. The OSS boundary is defined in [OPEN-CORE.md](OPEN-CORE.md).
 
 ---
 
 ## Prerequisites
 
-SecGate requires Node.js >=18. External scanners are optional — missing tools are skipped and noted in the report.
+Node.js >= 18. External scanners are optional.
 
 ```bash
 # macOS
@@ -85,7 +101,7 @@ sudo ln -sf "$(pwd)/secgate.js" /usr/local/bin/secgate
 # Scan current directory (dry-run, default)
 secgate .
 
-# Scan with auto-remediation (see warning below)
+# Scan with auto-remediation (npm audit fix only — see warning below)
 secgate . --apply
 
 # Scan with debug output
@@ -176,7 +192,7 @@ CLI flag  >  .secgate.config.json  >  built-in defaults
 
 - `--baseline` and `--update-baseline` are CLI-only (no config equivalent).
 - `failOn` in config is overridden per-run if you pass a custom exit-code wrapper in CI.
-- Missing config file → silent, defaults apply. Invalid JSON → error logged, defaults apply.
+- Missing config file: silent, defaults apply. Invalid JSON: error logged, defaults apply.
 
 ### Baseline workflow
 
@@ -208,7 +224,7 @@ Suppressed findings are excluded from counters. The report includes a `suppressi
 
 ---
 
-## CI/CD Example
+## CI/CD example
 
 ```yaml
 # .github/workflows/secgate.yml
@@ -235,7 +251,7 @@ For non-blocking (report only):
 
 ## SARIF output (`--format sarif`)
 
-SecGate can emit a [SARIF 2.1.0](https://sarifweb.azurewebsites.net/) report alongside the default JSON+HTML output. SARIF is the standard format consumed by GitHub Code Scanning, GitLab SAST, and other platforms.
+SecGate emits a [SARIF 2.1.0](https://sarifweb.azurewebsites.net/) report alongside the default JSON+HTML output. SARIF is the standard format consumed by GitHub Code Scanning, GitLab SAST, and other platforms.
 
 ```bash
 secgate . --format sarif
@@ -331,10 +347,11 @@ See `.github/workflows/example-secgate.yml` in this repository for a complete re
 
 ## Report output
 
-Each run writes two files:
+Each run writes:
 
 - **`secgate-v7-report.json`** — machine-readable report (schema below).
-- **`<repo-name>.html`** — premium self-contained HTML report with per-scanner tabs, dark-mode UI, zero external assets. Filename is derived from the target directory name.
+- **`<repo-name>.html`** — self-contained HTML report with per-scanner tabs, dark-mode UI, zero external assets. Filename is derived from the target directory name.
+- **`<repo-name>.sarif.json`** — SARIF 2.1.0 file (only when `--format sarif` is passed).
 
 ### JSON schema
 
@@ -398,8 +415,7 @@ Each run writes two files:
     {
       "timestamp": "ISO 8601",
       "event": "apply_start | apply_confirmed | apply_exec | apply_ok | apply_fail",
-      "target": "target path or repo basename (if --strip-paths)",
-      "...": "event-specific fields"
+      "target": "target path or repo basename (if --strip-paths)"
     }
   ]
 }
@@ -409,9 +425,9 @@ Each run writes two files:
 
 Every finding is normalized to one of 5 tiers at the `addFinding()` ingress:
 
-- **CRITICAL** — exploitable now (secrets, CVSS ≥ 9, hardcoded-credential SAST rules)
-- **HIGH** — high-impact (CVSS 7.0–8.9, Semgrep `ERROR`, rated `HIGH` upstream)
-- **MEDIUM** — meaningful (CVSS 4.0–6.9, `WARNING`, `MODERATE`)
+- **CRITICAL** — exploitable now (secrets, CVSS >= 9, hardcoded-credential SAST rules)
+- **HIGH** — high-impact (CVSS 7.0-8.9, Semgrep `ERROR`, rated `HIGH` upstream)
+- **MEDIUM** — meaningful (CVSS 4.0-6.9, `WARNING`, `MODERATE`)
 - **LOW** — informational (CVSS < 4.0, `INFO`, `NOTE`)
 - **UNKNOWN** — upstream provided no severity or an unrecognized value; surfaced explicitly rather than silently miscounted
 
@@ -431,28 +447,19 @@ Every finding is normalized to one of 5 tiers at the `addFinding()` ingress:
 
 ---
 
-## How SecGate compares
+## Risk scoring
 
-Honest side-by-side with the tools SecGate is weighed against. Full matrix in [`docs/comparison.md`](docs/comparison.md).
-
-| | SecGate | Snyk (free) | Trivy alone | Semgrep OSS | Aikido (free) |
-|--|:-:|:-:|:-:|:-:|:-:|
-| Bundled orchestration (5 scanners, 1 CLI) | **yes** | — | no | no | yes (SaaS) |
-| No account / no telemetry | **yes** | no | yes | yes | no |
-| Self-hosted / air-gapped | **yes** | no | yes | yes | no |
-| Free for commercial use | **yes** | limited | yes | yes | free tier |
-| Single HTML report across scanners | **yes** | dashboard | no | no | dashboard |
-
-**SecGate's niche:** zero-config bundled orchestration with no SaaS, no account, no telemetry. If you need SaaS-grade triage, buy Snyk or Aikido. If you need a CI gate that blocks critical issues without a sales call, use SecGate.
+Findings are scored with static weights applied at ingress: CRITICAL=10, HIGH=6, MEDIUM=3, LOW=1. The `riskScore` in the report is the sum of these weights across all findings. This is a simple heuristic count — it is not CVSS, not EPSS, and not exploit-probability modeling. Use it to compare runs of the same repo over time, not as an absolute security posture score.
 
 ---
 
 ## Documentation
 
+- [`OPEN-CORE.md`](OPEN-CORE.md) — OSS core boundary and paid extension roadmap
+- [`docs/comparison.md`](docs/comparison.md) — full feature matrix vs Snyk / Trivy / Semgrep / Aikido
 - [`docs/threat-model.md`](docs/threat-model.md) — STRIDE analysis, trust boundaries, mitigations
 - [`docs/coverage.md`](docs/coverage.md) — scanner-to-category matrix, explicit gaps
 - [`docs/tuning.md`](docs/tuning.md) — thresholds, baselines, suppression, CI vs local defaults
-- [`docs/comparison.md`](docs/comparison.md) — full feature matrix vs Snyk / Trivy / Semgrep / Aikido
 - [`docs/adr/`](docs/adr/) — architecture decision records (scanner stack, auto-fix scope, dry-run default, report format, no-API stance)
 - [`SECURITY.md`](SECURITY.md) — vulnerability reporting, SLA, coordinated disclosure
 
