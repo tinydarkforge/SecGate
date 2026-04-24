@@ -81,6 +81,8 @@ const toolStatus = {
   trivy: "pending"
 };
 
+const toolSkipReason = {};
+
 const report = {
   version: pkg.version,
   timestamp: new Date().toISOString(),
@@ -92,6 +94,7 @@ const report = {
 
   findings: [],
   tools: toolStatus,
+  toolSkipReason,
 
   intelligence: {
     riskScore: 0,
@@ -184,7 +187,7 @@ function addFinding(f) {
 ------------------------------*/
 
 function gitleaks() {
-  if (!toolExists("gitleaks")) { toolStatus.gitleaks = "skipped"; return; }
+  if (!toolExists("gitleaks")) { toolStatus.gitleaks = "skipped"; toolSkipReason.gitleaks = "not installed"; return; }
 
   const out = runTool("gitleaks", [
     "detect",
@@ -248,7 +251,7 @@ function semgrepSeverity(r) {
 }
 
 function semgrep() {
-  if (!toolExists("semgrep")) { toolStatus.semgrep = "skipped"; return; }
+  if (!toolExists("semgrep")) { toolStatus.semgrep = "skipped"; toolSkipReason.semgrep = "not installed"; return; }
 
   const out = runTool("semgrep", [
     "--config=auto",
@@ -341,7 +344,7 @@ function osvSeverity(v) {
 }
 
 function osvScanner() {
-  if (!toolExists("osv-scanner")) { toolStatus.osv = "skipped"; return; }
+  if (!toolExists("osv-scanner")) { toolStatus.osv = "skipped"; toolSkipReason.osv = "not installed"; return; }
 
   const out = runTool("osv-scanner", [
     "--format", "json",
@@ -388,7 +391,7 @@ function osvScanner() {
 }
 
 function trivy() {
-  if (!toolExists("trivy")) { toolStatus.trivy = "skipped"; return; }
+  if (!toolExists("trivy")) { toolStatus.trivy = "skipped"; toolSkipReason.trivy = "not installed"; return; }
 
   const out = runTool("trivy", [
     "fs",
@@ -442,7 +445,11 @@ function trivy() {
 }
 
 function npmAudit() {
-  if (!fs.existsSync(path.join(target, "package.json"))) { toolStatus.npm = "skipped"; return; }
+  if (!fs.existsSync(path.join(target, "package.json"))) {
+    toolStatus.npm = "skipped";
+    toolSkipReason.npm = "no package.json in target";
+    return;
+  }
 
   const out = runTool("npm", ["audit", "--json"], { cwd: target });
   debug("npm audit", out);
@@ -458,7 +465,12 @@ function npmAudit() {
     const json = JSON.parse(cleanOut);
 
     if (json.error) {
-      toolStatus.npm = json.error.code === "ENOLOCK" ? "skipped" : "error";
+      if (json.error.code === "ENOLOCK") {
+        toolStatus.npm = "skipped";
+        toolSkipReason.npm = "no package-lock.json (run `npm install` to generate)";
+      } else {
+        toolStatus.npm = "error";
+      }
       return;
     }
 
@@ -689,7 +701,7 @@ function renderHtml(rep, repoName) {
     const map = {
       ran: { text: "found issues", color: "#ff9500" },
       clean: { text: "clean", color: "#34c759" },
-      skipped: { text: "not installed", color: "#8e8e93" },
+      skipped: { text: "skipped", color: "#8e8e93" },
       error: { text: "error parsing output", color: "#ff3b30" },
       pending: { text: "not run", color: "#8e8e93" }
     };
@@ -717,7 +729,8 @@ function renderHtml(rep, repoName) {
     const list = byTool[tool] || [];
 
     if (st === "skipped") {
-      return `<div class="empty">Tool not installed. Install it and re-run to include ${e(TOOL_LABEL[tool])} in the scan.</div>`;
+      const reason = rep.toolSkipReason?.[tool] || "not installed";
+      return `<div class="empty">${e(TOOL_LABEL[tool])} skipped — ${e(reason)}.</div>`;
     }
     if (st === "error") {
       return `<div class="empty">${e(TOOL_LABEL[tool])} ran but output could not be parsed. Re-run with <code>--debug</code> to inspect.</div>`;
