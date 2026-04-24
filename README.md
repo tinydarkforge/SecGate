@@ -2,7 +2,7 @@
 
 Scan orchestrator for CI/CD pipelines. Runs Semgrep, Gitleaks, osv-scanner, Trivy, and npm audit in one command, normalizes findings into a single report, and blocks the pipeline on critical issues.
 
-> **Status:** Early release (v0.2.0). Published with [npm provenance](https://docs.npmjs.com/generating-provenance-statements). See [SECURITY.md](SECURITY.md) to report vulnerabilities.
+> **Status:** Early release (v0.2.1). Published with [npm provenance](https://docs.npmjs.com/generating-provenance-statements). See [SECURITY.md](SECURITY.md) to report vulnerabilities.
 
 ---
 
@@ -25,7 +25,7 @@ It does not run its own analysis engine. Every finding originates from one of th
 - **Gitleaks** — secret and credential detection
 - **npm audit** — Node dependency vulnerabilities (when `package.json` present)
 - **osv-scanner** — polyglot SCA (npm, PyPI, Go, Cargo, Maven, RubyGems, Packagist, NuGet, Pub)
-- **Trivy** — IaC misconfiguration + license scanning (Terraform, Kubernetes, Dockerfile, CloudFormation)
+- **Trivy** — IaC misconfiguration + license scanning (Terraform, Kubernetes, Dockerfile, CloudFormation) + container base-image vulnerability scanning
 
 Missing tools are skipped and noted in the report. No scanner is required.
 
@@ -267,7 +267,7 @@ secgate . --format sarif             # also writes JSON+HTML
 
 ### SARIF structure
 
-- One `runs[]` entry per scanner (semgrep, gitleaks, npm, osv, trivy).
+- One `runs[]` entry per scanner (semgrep, gitleaks, npm, osv, trivy, trivyImage — 6 total).
 - Each finding maps to a `result` with `ruleId` = signature, `level` derived from severity, and `locations[].physicalLocation` when file/line data is present.
 - `properties["security-severity"]` carries a numeric CVSS-style score for GitHub Code Scanning sort order: CRITICAL=9.5, HIGH=7.5, MEDIUM=5, LOW=2, UNKNOWN=0.
 
@@ -357,7 +357,7 @@ Each run writes:
 
 ```json
 {
-  "version": "0.1.0",
+  "version": "0.2.1",
   "timestamp": "ISO 8601",
   "target": "/absolute/path",
   "mode": "dry-run | apply",
@@ -370,15 +370,16 @@ Each run writes:
     "unknown": 0
   },
   "tools": {
-    "semgrep":  "ran | clean | skipped | error | pending",
-    "gitleaks": "ran | clean | skipped | error | pending",
-    "npm":      "ran | clean | skipped | error | pending",
-    "osv":      "ran | clean | skipped | error | pending",
-    "trivy":    "ran | clean | skipped | error | pending"
+    "semgrep":    "ran | clean | skipped | error | pending",
+    "gitleaks":   "ran | clean | skipped | error | pending",
+    "npm":        "ran | clean | skipped | error | pending",
+    "osv":        "ran | clean | skipped | error | pending",
+    "trivy":      "ran | clean | skipped | error | pending",
+    "trivyImage": "ran | clean | skipped | error | pending"
   },
   "findings": [
     {
-      "tool": "gitleaks | semgrep | npm | osv | trivy",
+      "tool": "gitleaks | semgrep | npm | osv | trivy | trivyImage",
       "type": "secret | code | dependency | iac | license",
       "severity": "CRITICAL | HIGH | MEDIUM | LOW | UNKNOWN",
       "signature": "rule or package ID",
