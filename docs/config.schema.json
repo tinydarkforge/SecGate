@@ -1,0 +1,75 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://github.com/tinydarkforge/SecGate/raw/main/docs/config.schema.json",
+  "title": "SecGate config",
+  "description": "Configuration for .secgate.config.json — place in the scan target directory.",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "failOn": {
+      "type": "array",
+      "description": "Severity tiers that cause SecGate to exit 1. Default: [\"critical\",\"high\"].",
+      "items": {
+        "type": "string",
+        "enum": ["critical", "high", "medium", "low", "unknown"]
+      },
+      "default": ["critical", "high"],
+      "examples": [["critical"], ["critical", "high", "medium"]]
+    },
+    "scanners": {
+      "type": "object",
+      "description": "Enable or disable individual scanners. Set a key to false to skip that scanner entirely.",
+      "additionalProperties": false,
+      "properties": {
+        "semgrep":  { "type": "boolean", "default": true },
+        "gitleaks": { "type": "boolean", "default": true },
+        "npm":      { "type": "boolean", "default": true },
+        "osv":      { "type": "boolean", "default": true },
+        "trivy":    { "type": "boolean", "default": true }
+      }
+    },
+    "severityOverrides": {
+      "type": "array",
+      "description": "Override the severity of findings whose signature matches a rule pattern. Patterns support literal strings and '*' wildcard. First match wins.",
+      "items": {
+        "type": "object",
+        "required": ["rule", "severity"],
+        "additionalProperties": false,
+        "properties": {
+          "rule": {
+            "type": "string",
+            "description": "Glob-style pattern matched against finding.signature. Use '*' as a wildcard."
+          },
+          "severity": {
+            "type": "string",
+            "enum": ["CRITICAL", "HIGH", "MEDIUM", "LOW", "UNKNOWN"],
+            "description": "Target severity (case-insensitive)."
+          }
+        }
+      },
+      "default": [],
+      "examples": [
+        [{ "rule": "npm-audit.lodash", "severity": "LOW" }],
+        [{ "rule": "trivy-ID-*", "severity": "MEDIUM" }]
+      ]
+    },
+    "ignore": {
+      "type": "array",
+      "description": "Signatures to drop entirely. Supports literal strings and '*' wildcard. Ignored findings are excluded from counters and the fail-gate.",
+      "items": { "type": "string" },
+      "default": [],
+      "examples": [["CVE-2024-12345", "npm:some-package*"]]
+    },
+    "baselineFile": {
+      "type": "string",
+      "description": "Path to the baseline JSON file. Relative paths are resolved from the scan target. Default: .secgate-baseline.json.",
+      "default": ".secgate-baseline.json"
+    },
+    "customSemgrepRules": {
+      "type": ["string", "null"],
+      "description": "Path to custom Semgrep rules directory or config file. Passed as --config=<path> in addition to --config=auto. Relative paths are resolved from the scan target.",
+      "default": null,
+      "examples": ["./rules/", ".semgrep/"]
+    }
+  }
+}

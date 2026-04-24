@@ -131,6 +131,83 @@ Guidance:
 
 ---
 
+## Configuration
+
+Create `.secgate.config.json` in your scan target directory. All fields are optional.
+
+```json
+{
+  "failOn": ["critical", "high"],
+  "scanners": {
+    "semgrep": true,
+    "gitleaks": true,
+    "npm": true,
+    "osv": true,
+    "trivy": false
+  },
+  "severityOverrides": [
+    { "rule": "npm-audit.lodash", "severity": "LOW" },
+    { "rule": "trivy-DS*", "severity": "MEDIUM" }
+  ],
+  "ignore": ["CVE-2024-12345", "npm:some-old-package*"],
+  "baselineFile": ".secgate-baseline.json",
+  "customSemgrepRules": "./rules/"
+}
+```
+
+JSON Schema: [`docs/config.schema.json`](docs/config.schema.json)
+
+### Config field reference
+
+| Field | Type | Default | Description |
+|---|---|---|---|
+| `failOn` | `string[]` | `["critical","high"]` | Severity tiers that cause exit 1 |
+| `scanners` | `object` | all `true` | Set any scanner to `false` to skip it |
+| `severityOverrides` | `array` | `[]` | Override severity for matching signatures (glob `*` supported) |
+| `ignore` | `string[]` | `[]` | Drop findings whose signature matches (glob `*` supported) |
+| `baselineFile` | `string` | `.secgate-baseline.json` | Path to baseline file (relative to target) |
+| `customSemgrepRules` | `string\|null` | `null` | Extra `--config=<path>` argument passed to semgrep |
+
+### Precedence
+
+```
+CLI flag  >  .secgate.config.json  >  built-in defaults
+```
+
+- `--baseline` and `--update-baseline` are CLI-only (no config equivalent).
+- `failOn` in config is overridden per-run if you pass a custom exit-code wrapper in CI.
+- Missing config file → silent, defaults apply. Invalid JSON → error logged, defaults apply.
+
+### Baseline workflow
+
+```bash
+# 1. Accept current state as baseline
+secgate . --update-baseline
+
+# 2. On subsequent runs, fail only on net-new findings
+secgate . --baseline
+```
+
+The baseline file (`.secgate-baseline.json`) should be committed to your repo. Findings present in the baseline are shown in reports with a `baseline` marker and excluded from the fail-gate.
+
+### Inline suppression
+
+Add a comment on the flagged line or the line immediately above:
+
+```js
+// secgate:ignore <rule-id>
+db.query(userInput);
+
+db.execute(sql); // secgate:ignore my.rule.id
+
+/* secgate:ignore my.rule.id */
+dangerousCall();
+```
+
+Suppressed findings are excluded from counters. The report includes a `suppressions` section with per-rule counts for audit purposes.
+
+---
+
 ## CI/CD Example
 
 ```yaml
