@@ -1,6 +1,10 @@
+```text
+░▒▓█ SECGATE · COMPARISON █▓▒░
+```
+
 # SecGate vs Alternatives
 
-Honest side-by-side comparison with the tools SecGate is most often weighed against.
+Honest side-by-side comparison against the tools SecGate is most often weighed against.
 
 All comparisons reflect the **free / open-source tier** of each product as of 2026-04. Paid tiers add capabilities not listed here.
 

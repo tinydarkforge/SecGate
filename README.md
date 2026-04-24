@@ -1,60 +1,94 @@
-# SecGate
+<!-- markdownlint-disable MD033 MD041 -->
 
-Scan orchestrator for CI/CD pipelines. Runs Semgrep, Gitleaks, osv-scanner, Trivy, and npm audit in one command, normalizes findings into a single report, and blocks the pipeline on critical issues.
+```text
+    ╔═══════╗        █████ █████ █████ █████ █████ █████ █████
+    ║ ╔═══╗ ║        █     █     █     █     █   █   █   █
+    ║ ║ ⊙ ║ ║        █████ ████  █     █ ███ █████   █   ████
+    ║ ╚═══╝ ║            █ █     █     █   █ █   █   █   █
+    ╠═══════╣        █████ █████ █████ █████ █   █   █   █████
+    ║ ░░░░░ ║
+╔═══╬═══════╬═══╗    ━━━━━━━━━━━━━ SECURITY GATE ━━━━━━━━━━━━━
+║   ║ [===] ║   ║    Semgrep · Gitleaks · osv-scanner · Trivy
+╚═══╬═══════╬═══╝    · npm audit  —  one command, one report,
+    ║ ║   ║ ║        one exit code. MIT · No account · No tel.
+    ╚═╝   ╚═╝
+```
 
-> **Status:** Early release (v0.2.3). Published with [npm provenance](https://docs.npmjs.com/generating-provenance-statements). See [SECURITY.md](SECURITY.md) to report vulnerabilities.
+<p align="center">
+  <a href="https://www.npmjs.com/package/@tinydarkforge/secgate"><img alt="npm" src="https://img.shields.io/npm/v/@tinydarkforge/secgate.svg?style=flat-square&labelColor=0a0a0a&color=00cc66"></a>
+  <a href="LICENSE"><img alt="license" src="https://img.shields.io/badge/license-MIT-00cc66.svg?style=flat-square&labelColor=0a0a0a"></a>
+  <img alt="node" src="https://img.shields.io/badge/node-%E2%89%A518-00cc66.svg?style=flat-square&labelColor=0a0a0a">
+  <img alt="provenance" src="https://img.shields.io/badge/npm%20provenance-signed-00cc66.svg?style=flat-square&labelColor=0a0a0a">
+  <a href="SECURITY.md"><img alt="security" src="https://img.shields.io/badge/security-policy-00cc66.svg?style=flat-square&labelColor=0a0a0a"></a>
+</p>
+
+> **SecGate** is a tiny security gate for CI/CD. Runs **Semgrep, Gitleaks, osv-scanner, Trivy, and npm audit** in one command, normalizes findings into one report, fails the pipeline on CRITICAL or HIGH. No account. No telemetry. Local files only.
+
+> **Status:** Early release (`v0.2.3`). Published with [npm provenance](https://docs.npmjs.com/generating-provenance-statements). Report vulnerabilities via [SECURITY.md](SECURITY.md).
 
 ---
 
-## What it does today
+## ░▒▓█ TL;DR
+
+```bash
+npx @tinydarkforge/secgate .
+```
+
+Runs all five scanners against the current directory, writes a JSON report, a self-contained HTML report, and (optionally) SARIF. Exit `0` on clean, `1` on CRITICAL/HIGH findings. That's the whole product.
+
+---
+
+## ░▒▓█ What it does today
 
 SecGate wraps five existing open-source scanners, runs them against a directory, and produces:
 
-- One normalized JSON report across all scanners
-- One self-contained HTML report with per-scanner tabs
-- One SARIF 2.1.0 file for GitHub Code Scanning upload
-- Exit code 1 when CRITICAL or HIGH findings are found — blocks CI
+- **One normalized JSON report** across every scanner
+- **One self-contained HTML report** with per-scanner tabs, dark mode, zero external assets
+- **One SARIF 2.1.0 file** ready for GitHub Code Scanning upload
+- **One exit code** — `1` when CRITICAL or HIGH findings are present; blocks CI
 
-It does not run its own analysis engine. Every finding originates from one of the five underlying tools. SecGate's value is the orchestration, normalization, and single exit code.
-
----
-
-## Scanners
-
-- **Semgrep** — static code analysis (SAST)
-- **Gitleaks** — secret and credential detection
-- **npm audit** — Node dependency vulnerabilities (when `package.json` present)
-- **osv-scanner** — polyglot SCA (npm, PyPI, Go, Cargo, Maven, RubyGems, Packagist, NuGet, Pub)
-- **Trivy** — IaC misconfiguration + license scanning (Terraform, Kubernetes, Dockerfile, CloudFormation) + container base-image vulnerability scanning
-
-Missing tools are skipped and noted in the report. No scanner is required.
+SecGate does not ship its own analysis engine. Every finding originates from one of the five underlying tools. The value is **orchestration, normalization, and a single exit code.**
 
 ---
 
-## Positioning
+## ░▒▓█ Scanners
 
-SecGate is not a SOC platform, a compliance tool, or a vulnerability management system. It is a CI gate that aggregates scanner output and fails the build when something critical is found.
+| Scanner       | Category                  | Notes                                                                 |
+|---------------|---------------------------|-----------------------------------------------------------------------|
+| **Semgrep**   | SAST (static code)        | OSS ruleset. 10+ languages. Extend via `customSemgrepRules`.          |
+| **Gitleaks**  | Secrets & credentials     | Working tree + git history (when `.git/` present). Secrets redacted.  |
+| **npm audit** | Node dependencies (SCA)   | Runs when `package.json` present. GitHub advisory DB.                 |
+| **osv-scanner** | Polyglot SCA            | npm, PyPI, Go, Cargo, Maven, RubyGems, Packagist, NuGet, Pub.         |
+| **Trivy**     | IaC + License + Image     | Terraform, Kubernetes, Dockerfile, CloudFormation. Base-image CVEs.   |
 
-Nearest alternatives:
-
-- **Trivy standalone** — better for container image scanning; no SAST or secrets bundling
-- **Semgrep OSS** — better custom SAST rules; no SCA or secrets
-- **Snyk** — managed vulnerability DB, triage UX, Jira sync; requires account, costs money
-- **Aikido** — bundled SaaS alternative; requires account, telemetry
-
-SecGate's niche: zero-config orchestration, no account, no telemetry, local output only, MIT license. If you need SaaS-grade triage, dashboards, or compliance workflow, Snyk or Aikido are the right buy. Full comparison: [`docs/comparison.md`](docs/comparison.md).
-
----
-
-## Product vision
-
-SecGate will become the open-source input layer for a broader security workflow. The core CLI — scan orchestration, SARIF output, baseline/suppression, HTML report — stays MIT-licensed and free. Future paid extensions will add hosted dashboards, org-wide policy management, compliance evidence packs, and multi-repo aggregation for teams that need more than a local gate. Those features do not exist today. The OSS boundary is defined in [OPEN-CORE.md](OPEN-CORE.md).
+Missing scanner binaries are **skipped gracefully** and noted in the report. No scanner is required; SecGate uses whatever is on `$PATH`.
 
 ---
 
-## Prerequisites
+## ░▒▓█ Positioning
 
-Node.js >= 18. External scanners are optional.
+SecGate is **not** a SOC platform, a compliance tool, or a vulnerability management system. It is a **CI gate** that aggregates scanner output and fails the build when something critical is found.
+
+| Alternative        | When to pick it instead of SecGate                              |
+|--------------------|-----------------------------------------------------------------|
+| **Trivy standalone** | You only scan containers and don't need SAST or secrets.     |
+| **Semgrep OSS**      | You only need SAST with custom rules.                        |
+| **Snyk**             | You need a managed vuln DB, triage UX, Jira sync — and budget.|
+| **Aikido**           | You want SaaS dashboards and are OK with a hosted account.   |
+
+**SecGate's niche:** zero-config orchestration, no account, no telemetry, local output only, MIT. If you need SaaS-grade triage or compliance workflow, buy Snyk or Aikido. Full matrix: [`docs/comparison.md`](docs/comparison.md).
+
+---
+
+## ░▒▓█ Product vision
+
+SecGate will become the open-source input layer for a broader security workflow. The **core CLI** — scan orchestration, SARIF output, baselines, suppressions, HTML report — stays **MIT-licensed and free, forever**. Future paid extensions may add hosted dashboards, org-wide policy management, compliance evidence packs, and multi-repo aggregation for teams that need more than a local gate. Those do not exist today. The OSS boundary is defined in [`OPEN-CORE.md`](OPEN-CORE.md).
+
+---
+
+## ░▒▓█ Prerequisites
+
+Node.js `>=18`. External scanners are optional — install only the ones you want to run.
 
 ```bash
 # macOS
@@ -62,14 +96,14 @@ brew install semgrep gitleaks osv-scanner trivy
 
 # Linux
 pip install semgrep
-# gitleaks:      https://github.com/gitleaks/gitleaks#installing
-# osv-scanner:   https://github.com/google/osv-scanner#installation
-# trivy:         https://aquasecurity.github.io/trivy/latest/getting-started/installation/
+# gitleaks:    https://github.com/gitleaks/gitleaks#installing
+# osv-scanner: https://github.com/google/osv-scanner#installation
+# trivy:       https://aquasecurity.github.io/trivy/latest/getting-started/installation/
 ```
 
 ---
 
-## Installation
+## ░▒▓█ Install
 
 ### From npm (recommended)
 
@@ -77,7 +111,7 @@ pip install semgrep
 npm install -g @tinydarkforge/secgate
 ```
 
-Or one-shot via `npx` (no install):
+### One-shot via npx (no install)
 
 ```bash
 npx @tinydarkforge/secgate .
@@ -95,7 +129,7 @@ sudo ln -sf "$(pwd)/secgate.js" /usr/local/bin/secgate
 
 ---
 
-## Usage
+## ░▒▓█ Usage
 
 ```bash
 # Scan current directory (dry-run, default)
@@ -116,38 +150,41 @@ secgate /path/to/project --output-dir /tmp/reports
 # Strip absolute paths from the report (auto-on when CI=true)
 secgate /path/to/project --strip-paths
 
-# Show version
+# Version / help
 secgate --version
-
-# Show help
 secgate --help
 ```
 
-Exit codes:
-- `0` — PASS (no CRITICAL or HIGH findings)
-- `1` — FAIL (CRITICAL or HIGH findings present)
-- `2` — invalid target or CLI error
+**Exit codes**
+
+| Code | Meaning                                            |
+|:----:|----------------------------------------------------|
+| `0`  | PASS — no CRITICAL or HIGH findings                |
+| `1`  | FAIL — CRITICAL or HIGH findings present           |
+| `2`  | Invalid target or CLI error                        |
 
 ---
 
-## Security: `--apply` in untrusted repos
+## ░▒▓█ Security — `--apply` in untrusted repos
 
-`--apply` executes remediations (`npm audit fix`) inside the scanned repo. Treat this as code execution against the target — only use it on code you trust.
+> **⚠ `--apply` executes remediations (`npm audit fix`) inside the scanned repo.** Treat this as code execution against the target. **Only use it on code you trust.**
 
-Hardening:
-- SecGate passes `--ignore-scripts` to every npm invocation under `--apply`, so malicious `preinstall`/`postinstall` scripts in the target repo's `package.json` or its dependencies are not executed.
-- `--apply` is gated: it refuses to run unless either `SECGATE_CONFIRM_APPLY=1` is set (for CI/non-interactive use) or the user confirms `y` at an interactive TTY prompt.
-- Every `--apply` execution is recorded in the report's `auditLog` field and mirrored to stderr with timestamp + target.
+**Hardening already in place:**
 
-Guidance:
-- **Do not run `--apply` against untrusted or newly cloned third-party repos.** Run scans in dry-run mode first, review findings, then decide.
-- In CI, prefer dry-run (`secgate .`) and rely on the exit code to gate the pipeline. Only use `--apply` with `SECGATE_CONFIRM_APPLY=1` inside an isolated, ephemeral runner.
-- Report files default to the target directory. Use `--output-dir` to redirect explicitly; a warning is printed to stderr when `cwd !== target`.
-- In CI, `--strip-paths` is auto-enabled to prevent host paths from leaking into uploaded artifacts.
+- Every npm invocation under `--apply` passes `--ignore-scripts` — malicious `preinstall` / `postinstall` scripts in the target's `package.json` (or its dependencies) are **not executed**.
+- `--apply` is **gated**: refuses to run unless `SECGATE_CONFIRM_APPLY=1` is set (CI / non-interactive) or the user types `y` at an interactive TTY prompt.
+- Every `--apply` execution is recorded in the report's `auditLog` field and mirrored to stderr with timestamp and target.
+
+**Operator guidance:**
+
+- **Do not run `--apply` against untrusted or newly cloned third-party repos.** Run dry-run first, review, decide.
+- In CI, prefer dry-run (`secgate .`) and rely on the exit code to gate. If you must `--apply`, do it inside an isolated, ephemeral runner with `SECGATE_CONFIRM_APPLY=1`.
+- Report files default to the target directory. Use `--output-dir` to redirect; a warning is printed to stderr when `cwd !== target`.
+- In CI, `--strip-paths` is auto-enabled to prevent host paths leaking into uploaded artifacts.
 
 ---
 
-## Configuration
+## ░▒▓█ Configuration
 
 Create `.secgate.config.json` in your scan target directory. All fields are optional.
 
@@ -173,16 +210,16 @@ Create `.secgate.config.json` in your scan target directory. All fields are opti
 
 JSON Schema: [`docs/config.schema.json`](docs/config.schema.json)
 
-### Config field reference
+### Field reference
 
-| Field | Type | Default | Description |
-|---|---|---|---|
-| `failOn` | `string[]` | `["critical","high"]` | Severity tiers that cause exit 1 |
-| `scanners` | `object` | all `true` | Set any scanner to `false` to skip it |
-| `severityOverrides` | `array` | `[]` | Override severity for matching signatures (glob `*` supported) |
-| `ignore` | `string[]` | `[]` | Drop findings whose signature matches (glob `*` supported) |
-| `baselineFile` | `string` | `.secgate-baseline.json` | Path to baseline file (relative to target) |
-| `customSemgrepRules` | `string\|null` | `null` | Extra `--config=<path>` argument passed to semgrep |
+| Field                | Type            | Default                    | Description                                                                 |
+|----------------------|-----------------|----------------------------|-----------------------------------------------------------------------------|
+| `failOn`             | `string[]`      | `["critical","high"]`      | Severity tiers that cause exit `1`                                          |
+| `scanners`           | `object`        | all `true`                 | Set any scanner to `false` to skip it                                       |
+| `severityOverrides`  | `array`         | `[]`                       | Override severity for matching signatures (glob `*` supported)              |
+| `ignore`             | `string[]`      | `[]`                       | Drop findings whose signature matches (glob `*` supported)                  |
+| `baselineFile`       | `string`        | `.secgate-baseline.json`   | Path to baseline file (relative to target)                                  |
+| `customSemgrepRules` | `string\|null` | `null`                     | Extra `--config=<path>` passed to semgrep                                   |
 
 ### Precedence
 
@@ -191,7 +228,6 @@ CLI flag  >  .secgate.config.json  >  built-in defaults
 ```
 
 - `--baseline` and `--update-baseline` are CLI-only (no config equivalent).
-- `failOn` in config is overridden per-run if you pass a custom exit-code wrapper in CI.
 - Missing config file: silent, defaults apply. Invalid JSON: error logged, defaults apply.
 
 ### Baseline workflow
@@ -204,7 +240,7 @@ secgate . --update-baseline
 secgate . --baseline
 ```
 
-The baseline file (`.secgate-baseline.json`) should be committed to your repo. Findings present in the baseline are shown in reports with a `baseline` marker and excluded from the fail-gate.
+Commit `.secgate-baseline.json` to your repo. Baselined findings appear in reports with a `baseline` marker and are excluded from the fail-gate.
 
 ### Inline suppression
 
@@ -220,11 +256,13 @@ db.execute(sql); // secgate:ignore my.rule.id
 dangerousCall();
 ```
 
-Suppressed findings are excluded from counters. The report includes a `suppressions` section with per-rule counts for audit purposes.
+Suppressed findings are excluded from counters. The report's `suppressions` section records per-rule counts for audit.
 
 ---
 
-## CI/CD example
+## ░▒▓█ CI / CD
+
+### GitHub Actions — minimal
 
 ```yaml
 # .github/workflows/secgate.yml
@@ -233,7 +271,8 @@ Suppressed findings are excluded from counters. The report includes a `suppressi
   # exits 1 on CRITICAL or HIGH findings — blocks the pipeline
 ```
 
-For non-blocking (report only):
+### Non-blocking (report only)
+
 ```yaml
 - name: Run SecGate
   run: npx @tinydarkforge/secgate . || true
@@ -247,50 +286,9 @@ For non-blocking (report only):
       *.html
 ```
 
----
+### As a composite GitHub Action
 
-## SARIF output (`--format sarif`)
-
-SecGate emits a [SARIF 2.1.0](https://sarifweb.azurewebsites.net/) report alongside the default JSON+HTML output. SARIF is the standard format consumed by GitHub Code Scanning, GitLab SAST, and other platforms.
-
-```bash
-secgate . --format sarif
-# writes: secgate-v7-report.json, <repo-name>.html, <repo-name>.sarif.json
-```
-
-The `--format` flag accepts a comma-separated list. `sarif` is additive — JSON and HTML are always written:
-
-```bash
-secgate . --format json,html,sarif   # same as above
-secgate . --format sarif             # also writes JSON+HTML
-```
-
-### SARIF structure
-
-- One `runs[]` entry per scanner (semgrep, gitleaks, npm, osv, trivy, trivyImage — 6 total).
-- Each finding maps to a `result` with `ruleId` = signature, `level` derived from severity, and `locations[].physicalLocation` when file/line data is present.
-- `properties["security-severity"]` carries a numeric CVSS-style score for GitHub Code Scanning sort order: CRITICAL=9.5, HIGH=7.5, MEDIUM=5, LOW=2, UNKNOWN=0.
-
-### Upload to GitHub Code Scanning
-
-```yaml
-- name: Run SecGate
-  id: secgate
-  run: npx @tinydarkforge/secgate . --format sarif
-
-- name: Upload SARIF
-  uses: github/codeql-action/upload-sarif@v3
-  if: always()
-  with:
-    sarif_file: <repo-name>.sarif.json
-    category: secgate
-```
-
----
-
-## Use as a GitHub Action
-
-A composite action is published in this repository at `.github/actions/secgate/`.
+A composite action is published at `.github/actions/secgate/` in this repo.
 
 ```yaml
 - name: SecGate Security Gate
@@ -319,38 +317,77 @@ A composite action is published in this repository at `.github/actions/secgate/`
     category: secgate
 ```
 
-**Action inputs:**
+**Action inputs**
 
-| Input | Default | Description |
-|-------|---------|-------------|
-| `target` | `.` | Directory to scan |
-| `apply` | `false` | Execute fixable remediations |
-| `fail-on` | `critical,high` | Severity levels that fail the step |
-| `format` | `json,html` | Output formats (comma-separated: json, html, sarif) |
+| Input     | Default          | Description                                              |
+|-----------|------------------|----------------------------------------------------------|
+| `target`  | `.`              | Directory to scan                                        |
+| `apply`   | `false`          | Execute fixable remediations                             |
+| `fail-on` | `critical,high`  | Severity levels that fail the step                       |
+| `format`  | `json,html`      | Output formats — comma-separated: `json`, `html`, `sarif`|
 
-**Action outputs:**
+**Action outputs**
 
-| Output | Description |
-|--------|-------------|
-| `report-path` | Path to `secgate-v7-report.json` |
-| `sarif-path` | Path to `<repo>.sarif.json` (set only when format includes `sarif`) |
+| Output        | Description                                                   |
+|---------------|---------------------------------------------------------------|
+| `report-path` | Path to `secgate-v7-report.json`                              |
+| `sarif-path`  | Path to `<repo>.sarif.json` (set only when format includes SARIF) |
 
-**Pinned SHA recommendation:** For production workflows, pin to a full commit SHA rather than `@main`:
+**Pin to a full commit SHA** for production workflows:
 
 ```yaml
 uses: tinydarkforge/SecGate/.github/actions/secgate@<full-sha>
 ```
 
-See `.github/workflows/example-secgate.yml` in this repository for a complete reference workflow.
+See [`.github/workflows/example-secgate.yml`](.github/workflows/example-secgate.yml) for a complete reference workflow.
 
 ---
 
-## Report output
+## ░▒▓█ SARIF output
+
+SecGate emits [SARIF 2.1.0](https://sarifweb.azurewebsites.net/) alongside JSON and HTML. SARIF is the standard format consumed by GitHub Code Scanning, GitLab SAST, and other platforms.
+
+```bash
+secgate . --format sarif
+# writes: secgate-v7-report.json, <repo>.html, <repo>.sarif.json
+```
+
+The `--format` flag accepts a comma-separated list. `sarif` is **additive** — JSON and HTML are always written:
+
+```bash
+secgate . --format json,html,sarif   # same as above
+secgate . --format sarif             # also writes JSON + HTML
+```
+
+### SARIF structure
+
+- One `runs[]` entry per scanner: `semgrep`, `gitleaks`, `npm`, `osv`, `trivy`, `trivyImage` (6 total).
+- Each finding maps to a `result` with `ruleId = signature`, `level` derived from severity, and `locations[].physicalLocation` when file/line data is present.
+- `properties["security-severity"]` carries a CVSS-style score for GitHub's sort order: `CRITICAL = 9.5`, `HIGH = 7.5`, `MEDIUM = 5`, `LOW = 2`, `UNKNOWN = 0`.
+
+### Upload to GitHub Code Scanning
+
+```yaml
+- name: Run SecGate
+  id: secgate
+  run: npx @tinydarkforge/secgate . --format sarif
+
+- name: Upload SARIF
+  uses: github/codeql-action/upload-sarif@v3
+  if: always()
+  with:
+    sarif_file: <repo-name>.sarif.json
+    category: secgate
+```
+
+---
+
+## ░▒▓█ Report output
 
 Each run writes:
 
-- **`secgate-v7-report.json`** — machine-readable report (schema below).
-- **`<repo-name>.html`** — self-contained HTML report with per-scanner tabs, dark-mode UI, zero external assets. Filename is derived from the target directory name.
+- **`secgate-v7-report.json`** — machine-readable, schema below.
+- **`<repo-name>.html`** — self-contained HTML report with per-scanner tabs, dark mode, zero external assets. Filename derived from the target directory name.
 - **`<repo-name>.sarif.json`** — SARIF 2.1.0 file (only when `--format sarif` is passed).
 
 ### JSON schema
@@ -424,13 +461,15 @@ Each run writes:
 
 ### Severity tiers
 
-Every finding is normalized to one of 5 tiers at the `addFinding()` ingress:
+Every finding is normalized to one of five tiers at the `addFinding()` ingress:
 
-- **CRITICAL** — exploitable now (secrets, CVSS >= 9, hardcoded-credential SAST rules)
-- **HIGH** — high-impact (CVSS 7.0-8.9, Semgrep `ERROR`, rated `HIGH` upstream)
-- **MEDIUM** — meaningful (CVSS 4.0-6.9, `WARNING`, `MODERATE`)
-- **LOW** — informational (CVSS < 4.0, `INFO`, `NOTE`)
-- **UNKNOWN** — upstream provided no severity or an unrecognized value; surfaced explicitly rather than silently miscounted
+| Tier        | Meaning                                                                                  |
+|-------------|------------------------------------------------------------------------------------------|
+| **CRITICAL**| Exploitable now — secrets, CVSS ≥ 9, hardcoded-credential SAST rules                      |
+| **HIGH**    | High-impact — CVSS 7.0–8.9, Semgrep `ERROR`, rated `HIGH` upstream                        |
+| **MEDIUM**  | Meaningful — CVSS 4.0–6.9, `WARNING`, `MODERATE`                                          |
+| **LOW**     | Informational — CVSS < 4.0, `INFO`, `NOTE`                                                |
+| **UNKNOWN** | Upstream provided no severity or an unrecognized value — surfaced rather than miscounted |
 
 ### Fixability
 
@@ -440,38 +479,58 @@ Every finding is normalized to one of 5 tiers at the `addFinding()` ingress:
 
 ### Tool states
 
-- **`ran`** — tool executed, findings present.
-- **`clean`** — tool executed, no findings.
-- **`skipped`** — tool not installed, or target not applicable (no `package.json` for npm audit, no lockfile, etc.).
-- **`error`** — tool produced output that could not be parsed (re-run with `--debug` to inspect).
-- **`pending`** — tool did not run (should not appear in final reports).
+| State       | Meaning                                                                      |
+|-------------|------------------------------------------------------------------------------|
+| `ran`       | Tool executed, findings present                                              |
+| `clean`     | Tool executed, no findings                                                   |
+| `skipped`   | Tool not installed, or target not applicable (no `package.json`, no lockfile)|
+| `error`     | Tool produced output that could not be parsed — re-run with `--debug`        |
+| `pending`   | Tool did not run (should not appear in final reports)                        |
 
 ---
 
-## Risk scoring
+## ░▒▓█ Risk scoring
 
-Findings are scored with static weights applied at ingress: CRITICAL=10, HIGH=6, MEDIUM=3, LOW=1. The `riskScore` in the report is the sum of these weights across all findings. This is a simple heuristic count — it is not CVSS, not EPSS, and not exploit-probability modeling. Use it to compare runs of the same repo over time, not as an absolute security posture score.
+Findings are scored with static weights applied at ingress:
 
----
+| Severity | Weight |
+|----------|:------:|
+| CRITICAL | 10     |
+| HIGH     | 6      |
+| MEDIUM   | 3      |
+| LOW      | 1      |
 
-## Documentation
-
-- [`OPEN-CORE.md`](OPEN-CORE.md) — OSS core boundary and paid extension roadmap
-- [`docs/comparison.md`](docs/comparison.md) — full feature matrix vs Snyk / Trivy / Semgrep / Aikido
-- [`docs/threat-model.md`](docs/threat-model.md) — STRIDE analysis, trust boundaries, mitigations
-- [`docs/coverage.md`](docs/coverage.md) — scanner-to-category matrix, explicit gaps
-- [`docs/tuning.md`](docs/tuning.md) — thresholds, baselines, suppression, CI vs local defaults
-- [`docs/adr/`](docs/adr/) — architecture decision records (scanner stack, auto-fix scope, dry-run default, report format, no-API stance)
-- [`SECURITY.md`](SECURITY.md) — vulnerability reporting, SLA, coordinated disclosure
+The `riskScore` in the report is the sum of these weights across all findings. This is a **heuristic count**, not CVSS, not EPSS, not exploit-probability modeling. Use it to compare runs of the same repo over time — not as an absolute posture score.
 
 ---
 
-## Contributing
+## ░▒▓█ Documentation
 
-See [CONTRIBUTING.md](CONTRIBUTING.md). Report vulnerabilities per [SECURITY.md](SECURITY.md).
+| Doc                                                    | What's in it                                                                   |
+|--------------------------------------------------------|--------------------------------------------------------------------------------|
+| [`OPEN-CORE.md`](OPEN-CORE.md)                         | OSS core boundary and paid extension roadmap                                   |
+| [`docs/comparison.md`](docs/comparison.md)             | Feature matrix vs Snyk / Trivy / Semgrep / Aikido                              |
+| [`docs/coverage.md`](docs/coverage.md)                 | Scanner-to-category matrix, explicit gaps                                      |
+| [`docs/tuning.md`](docs/tuning.md)                     | Thresholds, baselines, suppression, CI vs local defaults                       |
+| [`docs/threat-model.md`](docs/threat-model.md)         | STRIDE analysis, trust boundaries, mitigations                                 |
+| [`docs/adr/`](docs/adr/)                               | Architecture decision records                                                  |
+| [`SECURITY.md`](SECURITY.md)                           | Vulnerability reporting, SLA, coordinated disclosure, supply-chain trust       |
+| [`CONTRIBUTING.md`](CONTRIBUTING.md)                   | Dev setup, branch + commit conventions, PR checklist                           |
 
 ---
 
-## License
+## ░▒▓█ Contributing
 
-[MIT](LICENSE) — TinyDarkForge
+See [`CONTRIBUTING.md`](CONTRIBUTING.md). Report vulnerabilities privately per [`SECURITY.md`](SECURITY.md) — **do not open public issues for security reports**.
+
+---
+
+## ░▒▓█ License
+
+[MIT](LICENSE) — © TinyDarkForge
+
+```text
+            ╔═══╗
+            ║ ⊙ ║   "BLOCK. SCAN. GATE."
+            ╚═══╝
+```

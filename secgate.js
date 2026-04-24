@@ -43,7 +43,16 @@ if (argv.includes("--version") || argv.includes("-v")) {
 }
 
 if (argv.includes("--help") || argv.includes("-h")) {
-  console.log(`SecGate v${pkg.version} — tiny security gate for CI/CD
+  console.log(`
+    ╔═══════╗   █████ █████ █████ █████ █████ █████ █████
+    ║ ╔═══╗ ║   █     █     █     █     █   █   █   █
+    ║ ║ ⊙ ║ ║   █████ ████  █     █ ███ █████   █   ████
+    ║ ╚═══╝ ║       █ █     █     █   █ █   █   █   █
+    ╠═══════╣   █████ █████ █████ █████ █   █   █   █████
+╔═══╬═══════╬═══╗
+║   ║ [===] ║   ║  v${pkg.version} — tiny security gate for CI/CD
+╚═══╬═══════╬═══╝  Semgrep · Gitleaks · osv-scanner · Trivy · npm
+    ╚═╝   ╚═╝
 
 Usage:
   secgate [target] [options]
@@ -232,10 +241,11 @@ function confirmApplyOrExit() {
    SCAN
    ──────────────────────────────────────────────────────────────────────────── */
 
-console.log("\nSEC GATE v7 - AI SOC ENGINE");
+console.log(`
+░▒▓█ SECGATE v${pkg.version} █▓▒░`);
 console.log("Target:", reportTarget);
-console.log("Mode:", APPLY ? "APPLY" : "DRY RUN");
-console.log("--------------------------------");
+console.log("Mode:  ", APPLY ? "APPLY" : "DRY RUN");
+console.log("────────────────────────────────");
 
 confirmApplyOrExit();
 if (APPLY) {
@@ -303,7 +313,7 @@ report.status = resolveStatus(activeFindings, config.failOn, BASELINE_MODE);
    OUTPUT
    ──────────────────────────────────────────────────────────────────────────── */
 
-console.log("\n--------------------------------");
+console.log("\n────────────────────────────────");
 console.log("STATUS:", report.status);
 console.log("RISK SCORE:", report.intelligence.riskScore);
 console.log("CONFIDENCE:", report.remediation.confidence + "%");

@@ -1,8 +1,12 @@
+```text
+░▒▓█ SECGATE · THREAT MODEL █▓▒░
+```
+
 # SecGate Threat Model
 
-STRIDE-based threat model for SecGate v0.1.x.
+STRIDE-based threat model for SecGate.
 
-Audience: security reviewers, enterprise adopters, contributors hardening the CLI.
+**Audience:** security reviewers, enterprise adopters, contributors hardening the CLI.
 
 ---
 

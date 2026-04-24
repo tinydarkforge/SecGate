@@ -1,6 +1,10 @@
+```text
+░▒▓█ SECGATE · COVERAGE MATRIX █▓▒░
+```
+
 # Scanner Coverage Matrix
 
-Which scanner covers which category, and where the gaps are.
+Which scanner covers which category — and where the gaps are.
 
 ---
 

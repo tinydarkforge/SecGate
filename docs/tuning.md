@@ -1,8 +1,12 @@
+```text
+░▒▓█ SECGATE · TUNING █▓▒░
+```
+
 # Tuning SecGate
 
 How to adjust severity thresholds, baseline noisy findings, suppress rules, toggle scanners, and tune CI vs local defaults.
 
-> Some flags referenced here (`--fail-on`, `--baseline`, `--disable`) are slated for the config epic [**#32**](https://github.com/tinydarkforge/SecGate/issues/32). Where a flag is planned but not yet shipped, this doc marks it **(planned)**.
+> Flags marked **(planned)** are not yet shipped; the rest of this document reflects `v0.2.3` behavior. The config epic tracking remaining work: [**#32**](https://github.com/tinydarkforge/SecGate/issues/32).
 
 ---
 
@@ -12,20 +16,17 @@ How to adjust severity thresholds, baseline noisy findings, suppress rules, togg
 
 SecGate exits `1` on any **CRITICAL** or **HIGH** finding. MEDIUM and LOW findings are reported but do not fail the build.
 
-### Custom threshold (planned #32)
+### Custom threshold
 
-```bash
-# Only fail on CRITICAL
-secgate . --fail-on critical
+Set `failOn` in `.secgate.config.json`:
 
-# Fail on MEDIUM and above (stricter)
-secgate . --fail-on critical,high,medium
-
-# Report only — never fail
-secgate . --fail-on none
+```json
+{ "failOn": ["critical"] }                      // only fail on CRITICAL
+{ "failOn": ["critical", "high", "medium"] }    // stricter
+{ "failOn": [] }                                // report only — never fail
 ```
 
-### Today — use exit-code masking
+### Alternative — exit-code masking
 
 ```bash
 # Report only, don't fail CI
@@ -38,22 +39,22 @@ secgate . || true
 
 Large existing codebases onboarding SecGate often have pre-existing findings that cannot be remediated immediately. A **baseline** records the current findings as acknowledged and fails the build only on *new* findings.
 
-### Workflow (planned #32)
+### Workflow
 
 ```bash
-# 1. Initial scan records current state
-secgate . --baseline-write .secgate-baseline.json
+# 1. Record current state as baseline
+secgate . --update-baseline
 
-# 2. Subsequent scans diff against baseline
-secgate . --baseline .secgate-baseline.json
+# 2. Subsequent scans diff against baseline, failing only on net-new findings
+secgate . --baseline
 
 # 3. A new CRITICAL finding not in baseline → exit 1
 # 4. Review + regenerate baseline quarterly
 ```
 
-Baseline file is a JSON list of finding **signatures** (rule ID + file path + line). Commit it to the repo.
+Baseline file defaults to `.secgate-baseline.json` in the target directory (override via `baselineFile` in config). It is a JSON list of finding **signatures** (rule ID + file path + line). Commit it to the repo.
 
-### Today — use suppression comments
+### Complementary — inline suppression
 
 See next section.
 
@@ -104,31 +105,27 @@ Use the rule ID from the JSON report (`findings[].signature` field). Copy-paste 
 
 ## Per-Scanner Toggles
 
-### Disable a scanner (planned #32)
+### Disable scanners via config
 
-```bash
-# Skip Trivy (e.g., IaC not in scope for this repo)
-secgate . --disable trivy
-
-# Skip multiple
-secgate . --disable trivy,npm
+```json
+{
+  "scanners": {
+    "semgrep":  true,
+    "gitleaks": true,
+    "npm":      true,
+    "osv":      true,
+    "trivy":    false
+  }
+}
 ```
 
-### Enable only one scanner (planned #32)
+Any scanner set to `false` is skipped and reported as `status: "skipped"`. To run only one scanner, disable the rest.
 
-```bash
-# Only run Semgrep
-secgate . --only semgrep
-```
+### Alternative — remove the binary
 
-### Today — use environment variable
+SecGate skips any scanner whose binary is not on `$PATH` (reported as `skipped` with reason `binary not found`). Useful when you control the CI image — install only the scanners you want to run.
 
-```bash
-# Force a scanner to "not installed" — it will be skipped
-PATH="" SECGATE_SKIP=trivy secgate .    # planned
-```
-
-Today's workaround: temporarily uninstall the binary, or rely on the scanner being absent (SecGate skips missing binaries gracefully).
+CLI flags `--disable <list>` and `--only <scanner>` are planned — see [#32](https://github.com/tinydarkforge/SecGate/issues/32).
 
 ---
 
@@ -185,13 +182,12 @@ jobs:
 
 You are starting a green-field repo and want every issue caught.
 
-```bash
-# Local
-secgate . --fail-on critical,high,medium,low   # planned
-
-# CI
-# Same, no baseline needed (green field)
+```json
+// .secgate.config.json
+{ "failOn": ["critical", "high", "medium", "low"] }
 ```
+
+No baseline needed (green field). Same config in CI and local.
 
 ### Example 2 — Legacy repo, onboarding
 
@@ -199,17 +195,18 @@ You have a five-year-old repo with 200 pre-existing findings. You cannot fix the
 
 ```bash
 # 1. First run — record baseline
-secgate . --baseline-write .secgate-baseline.json
+secgate . --update-baseline
 
 # 2. Commit baseline
 git add .secgate-baseline.json
 git commit -m "chore(security): establish secgate baseline"
 
 # 3. All future PRs
-secgate . --baseline .secgate-baseline.json
+secgate . --baseline
 # → passes unless a NEW CRITICAL/HIGH appears
 
-# 4. Quarterly cleanup: pick 20 findings, fix, regenerate baseline
+# 4. Quarterly cleanup: fix a batch of findings, regenerate baseline
+secgate . --update-baseline
 ```
 
 ### Example 3 — Monorepo with IaC in one subdir only
@@ -217,12 +214,16 @@ secgate . --baseline .secgate-baseline.json
 Your repo has `app/` (Node) and `infra/` (Terraform). You want Trivy only against `infra/`.
 
 ```bash
-# Run twice with scoped targets
-secgate app/ --disable trivy     # planned
-secgate infra/ --only trivy      # planned
+# Today — two configs, two runs
+# app/.secgate.config.json          → { "scanners": { "trivy": false } }
+# infra/.secgate.config.json        → { "scanners": { "semgrep": false, "gitleaks": false, "npm": false, "osv": false } }
 
-# Or — today — run against the whole repo and accept that Trivy scans every directory.
-# SecGate's scoping today is path-based, not scanner-per-path.
+secgate app/
+secgate infra/
+
+# Or run against the whole repo and accept that every scanner scans every
+# directory. Scoping today is path-based, not scanner-per-path.
+# CLI equivalents (--disable, --only) planned: #32.
 ```
 
 ---

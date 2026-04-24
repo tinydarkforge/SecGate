@@ -1,3 +1,7 @@
+```text
+░▒▓█ SECGATE · SECURITY POLICY █▓▒░
+```
+
 # Security Policy
 
 ## Reporting a Vulnerability
