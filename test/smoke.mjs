@@ -314,7 +314,7 @@ test("--format sarif writes .sarif.json alongside JSON+HTML", () => {
   assertEq(sarif.version, "2.1.0", "sarif.version");
   assertContains(sarif.$schema, "sarif", "$schema");
   if (Array.isArray(sarif.runs)) {
-    assertEq(sarif.runs.length, 5, "5 runs entries");
+    assertEq(sarif.runs.length, 6, "6 runs entries");
   }
   try { fs.unlinkSync(sarifPath); } catch {}
   try { fs.unlinkSync(jsonPath); } catch {}

@@ -163,11 +163,11 @@ test("SARIF top-level: version 2.1.0 and $schema", () => {
   fs.rmSync(d, { recursive: true, force: true });
 });
 
-test("SARIF has one runs[] entry per scanner (5 total)", () => {
+test("SARIF has one runs[] entry per scanner (6 total)", () => {
   const d = scratchDir("runs");
   fs.writeFileSync(path.join(d, "package.json"), JSON.stringify({ name: "fx", version: "0.0.0" }));
   const { sarif } = runWithStubs(d, { npm: npmPayload }, ["--format", "sarif"]);
-  assertEq(sarif.runs.length, 5, "runs count");
+  assertEq(sarif.runs.length, 6, "runs count");
   const names = sarif.runs.map(r => r.tool.driver.name);
   assert(names.includes("npm audit"), "npm run present");
   assert(names.includes("Semgrep"), "semgrep run present");
