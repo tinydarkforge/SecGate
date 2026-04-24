@@ -24,7 +24,7 @@
 
 > **SecGate** is a tiny security gate for CI/CD. Runs **Semgrep, Gitleaks, osv-scanner, Trivy, and npm audit** in one command, normalizes findings into one report, fails the pipeline on CRITICAL or HIGH. No account. No telemetry. Local files only.
 
-> **Status:** Early release (`v0.2.3`). Published with [npm provenance](https://docs.npmjs.com/generating-provenance-statements). Report vulnerabilities via [SECURITY.md](SECURITY.md).
+> **Status:** Early release (`v0.2.4`). Published with [npm provenance](https://docs.npmjs.com/generating-provenance-statements). Report vulnerabilities via [SECURITY.md](SECURITY.md).
 
 ---
 
@@ -394,7 +394,7 @@ Each run writes:
 
 ```json
 {
-  "version": "0.2.3",
+  "version": "0.2.4",
   "timestamp": "ISO 8601",
   "target": "/absolute/path",
   "mode": "dry-run | apply",
