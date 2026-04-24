@@ -2,7 +2,7 @@
 
 Scan orchestrator for CI/CD pipelines. Runs Semgrep, Gitleaks, osv-scanner, Trivy, and npm audit in one command, normalizes findings into a single report, and blocks the pipeline on critical issues.
 
-> **Status:** Early release (v0.2.1). Published with [npm provenance](https://docs.npmjs.com/generating-provenance-statements). See [SECURITY.md](SECURITY.md) to report vulnerabilities.
+> **Status:** Early release (v0.2.2). Published with [npm provenance](https://docs.npmjs.com/generating-provenance-statements). See [SECURITY.md](SECURITY.md) to report vulnerabilities.
 
 ---
 
@@ -357,7 +357,7 @@ Each run writes:
 
 ```json
 {
-  "version": "0.2.1",
+  "version": "0.2.2",
   "timestamp": "ISO 8601",
   "target": "/absolute/path",
   "mode": "dry-run | apply",
