@@ -36,7 +36,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          ref: ${{ inputs.tag || '' }}
+          ref: ${{ inputs.tag || github.ref }}
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -243,19 +243,7 @@ jobs:
           registry-url: "https://registry.npmjs.org"
 
       - name: Install external scanners
-        run: |
-          pip install --quiet semgrep
-          curl -sSL https://github.com/gitleaks/gitleaks/releases/download/v8.21.2/gitleaks_8.21.2_linux_x64.tar.gz \
-            | sudo tar -xz -C /usr/local/bin gitleaks
-          curl -sSL -o /tmp/osv-scanner \
-            https://github.com/google/osv-scanner/releases/latest/download/osv-scanner_linux_amd64
-          sudo install -m 755 /tmp/osv-scanner /usr/local/bin/osv-scanner
-          curl -sSL https://aquasecurity.github.io/trivy-repo/deb/public.key \
-            | sudo gpg --dearmor -o /usr/share/keyrings/trivy.gpg
-          echo "deb [signed-by=/usr/share/keyrings/trivy.gpg] https://aquasecurity.github.io/trivy-repo/deb generic main" \
-            | sudo tee /etc/apt/sources.list.d/trivy.list
-          sudo apt-get update -qq
-          sudo apt-get install -y trivy
+        uses: ./.github/actions/install-scanners
 
       - name: Self-scan (block on CRITICAL/HIGH)
         run: node secgate.js .

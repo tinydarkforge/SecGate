@@ -19,19 +19,7 @@ jobs:
           node-version: "20"
 
       - name: Install external scanners
-        run: |
-          pip install --quiet semgrep
-          curl -sSL https://github.com/gitleaks/gitleaks/releases/download/v8.21.2/gitleaks_8.21.2_linux_x64.tar.gz \
-            | sudo tar -xz -C /usr/local/bin gitleaks
-          curl -sSL -o /tmp/osv-scanner \
-            https://github.com/google/osv-scanner/releases/latest/download/osv-scanner_linux_amd64
-          sudo install -m 755 /tmp/osv-scanner /usr/local/bin/osv-scanner
-          curl -sSL https://aquasecurity.github.io/trivy-repo/deb/public.key \
-            | sudo gpg --dearmor -o /usr/share/keyrings/trivy.gpg
-          echo "deb [signed-by=/usr/share/keyrings/trivy.gpg] https://aquasecurity.github.io/trivy-repo/deb generic main" \
-            | sudo tee /etc/apt/sources.list.d/trivy.list
-          sudo apt-get update -qq
-          sudo apt-get install -y trivy
+        uses: ./.github/actions/install-scanners
 
       - name: Run smoke tests
         run: npm test
@@ -42,26 +30,13 @@ jobs:
     needs: [test]
     permissions:
       contents: read
-      security-events: write
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
       - name: Install external scanners
-        run: |
-          pip install --quiet semgrep
-          curl -sSL https://github.com/gitleaks/gitleaks/releases/download/v8.21.2/gitleaks_8.21.2_linux_x64.tar.gz \
-            | sudo tar -xz -C /usr/local/bin gitleaks
-          curl -sSL -o /tmp/osv-scanner \
-            https://github.com/google/osv-scanner/releases/latest/download/osv-scanner_linux_amd64
-          sudo install -m 755 /tmp/osv-scanner /usr/local/bin/osv-scanner
-          curl -sSL https://aquasecurity.github.io/trivy-repo/deb/public.key \
-            | sudo gpg --dearmor -o /usr/share/keyrings/trivy.gpg
-          echo "deb [signed-by=/usr/share/keyrings/trivy.gpg] https://aquasecurity.github.io/trivy-repo/deb generic main" \
-            | sudo tee /etc/apt/sources.list.d/trivy.list
-          sudo apt-get update -qq
-          sudo apt-get install -y trivy
+        uses: ./.github/actions/install-scanners
 
       - name: Run SecGate (self-scan)
         id: secgate
