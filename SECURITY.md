@@ -12,34 +12,14 @@ If you discover a security vulnerability in SecGate, please report it privately.
 
 ### Preferred channels
 
-1. **GitHub Security Advisory** — open a [private security advisory](https://github.com/tinydarkforge/SecGate/security/advisories/new). This is the fastest route and is tracked via the GitHub Security Advisories (GHSA) workflow.
-2. **Encrypted email** — for reporters who cannot use GitHub advisories, email `security@tinydarkforge.dev` encrypted with our PGP key (below).
+1. **GitHub Security Advisory** — open a [private security advisory](https://github.com/tinydarkforge/SecGate/security/advisories/new). This is the fastest route and is tracked via the GitHub Security Advisories (GHSA) workflow. **This is the only fully private channel available right now.**
+2. **Email** — `security@tinydarkforge.dev`. Plain email is accepted; encrypted email is not yet available (see below).
 
 ### PGP Key
 
-```
-Fingerprint: <insert fingerprint>
-Key ID:      <insert key ID>
-Expires:     <insert expiry>
-```
+**Status: not yet generated (tracked in issue #34).** Encrypted email is unavailable until the key is published. Use the GitHub Security Advisory channel for fully private reporting.
 
-**Status:** key generation is pending (see issue #34 acceptance criteria). Instructions for the maintainer:
-
-```bash
-# Generate a new key (RSA 4096, 2-year expiry)
-gpg --full-generate-key
-
-# Export public key
-gpg --armor --export security@tinydarkforge.dev > pgp-public.asc
-
-# Get fingerprint
-gpg --fingerprint security@tinydarkforge.dev
-
-# Publish to keyserver
-gpg --send-keys <KEY_ID>
-```
-
-Once generated, paste the fingerprint above and commit `pgp-public.asc` to the repo root.
+Once generated, the key fingerprint and `pgp-public.asc` will be committed to the repo root and this section updated.
 
 ### Include in your report
 

@@ -58,6 +58,14 @@
     "test:baseline": "node test/baseline.mjs",
     "test:suppression": "node test/suppression.mjs",
     "test:engine": "node test/engine.mjs",
+    "test:coverage": "c8 --reporter=text --reporter=lcov npm test",
+    "lint": "eslint .",
     "scan": "node secgate.js ."
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.27.0",
+    "c8": "^10.1.3",
+    "eslint": "^9.27.0",
+    "globals": "^16.1.0"
   }
 }

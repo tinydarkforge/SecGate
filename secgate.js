@@ -1,6 +1,5 @@
 #!/usr/bin/env node
 
-import { execFileSync } from "child_process";
 import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
@@ -259,12 +258,21 @@ function applyResult(toolKey, result) {
   if (result.skipReason) toolSkipReason[toolKey] = result.skipReason;
 }
 
-applyResult("semgrep",    runSemgrep(target, config, addFinding, debugFn));
-applyResult("gitleaks",   runGitleaks(target, config, addFinding, debugFn));
-applyResult("npm",        runNpmAudit(target, config, addFinding, debugFn));
-applyResult("osv",        runOsvScanner(target, config, addFinding, debugFn));
-applyResult("trivy",      runTrivy(target, config, addFinding, debugFn));
-applyResult("trivyImage", runTrivyImage(target, config, addFinding, debugFn));
+const [sgRes, glRes, npmRes, osvRes, trivyRes, trivyImgRes] = await Promise.all([
+  runSemgrep(target, config, addFinding, debugFn),
+  runGitleaks(target, config, addFinding, debugFn),
+  runNpmAudit(target, config, addFinding, debugFn),
+  runOsvScanner(target, config, addFinding, debugFn),
+  runTrivy(target, config, addFinding, debugFn),
+  runTrivyImage(target, config, addFinding, debugFn)
+]);
+
+applyResult("semgrep",    sgRes);
+applyResult("gitleaks",   glRes);
+applyResult("npm",        npmRes);
+applyResult("osv",        osvRes);
+applyResult("trivy",      trivyRes);
+applyResult("trivyImage", trivyImgRes);
 
 /* ────────────────────────────────────────────────────────────────────────────
    BASELINE

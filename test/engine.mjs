@@ -15,17 +15,20 @@ const libDir  = path.resolve(here, "..", "lib");
 
 let passed = 0;
 let failed = 0;
+const pendingTests = [];
 
 function test(name, fn) {
-  try {
-    fn();
-    console.log(`  ok  ${name}`);
-    passed++;
-  } catch (e) {
-    console.log(`  FAIL ${name}`);
-    console.log(`       ${e.message}`);
-    failed++;
-  }
+  pendingTests.push(async () => {
+    try {
+      await fn();
+      console.log(`  ok  ${name}`);
+      passed++;
+    } catch (e) {
+      console.log(`  FAIL ${name}`);
+      console.log(`       ${e.message}`);
+      failed++;
+    }
+  });
 }
 
 function assert(cond, msg) {
@@ -51,20 +54,14 @@ const {
 const {
   normalizeSeverity,
   matchPattern,
-  matchesAny,
-  runTool,
-  toolExists
+  matchesAny
 } = await import(`${libDir}/utils.mjs`);
 
 const {
   hasInlineSuppression,
   makeFindingProcessor,
   runGitleaks,
-  runSemgrep,
-  runOsvScanner,
-  runTrivy,
-  runTrivyImage,
-  runNpmAudit
+  runSemgrep
 } = await import(`${libDir}/scanners.mjs`);
 
 const {
@@ -84,7 +81,6 @@ const {
   summarize,
   resolveStatus,
   stripAbsolutePaths,
-  applyPathStripping,
   renderHtml,
   buildSarif
 } = await import(`${libDir}/report.mjs`);
@@ -280,25 +276,25 @@ test("scanners: hasInlineSuppression returns false for nonexistent file", () => 
   assertEq(result, false, "missing file returns false");
 });
 
-test("scanners: missing-tool returns skipped status with reason", () => {
+test("scanners: missing-tool returns skipped status with reason", async () => {
   const findings     = [];
   const suppressions = { count: 0, byRule: {} };
   const config       = { ...CONFIG_DEFAULTS, scanners: { ...CONFIG_DEFAULTS.scanners } };
   const add          = makeFindingProcessor(config, "/tmp", findings, suppressions);
 
-  const result = runGitleaks("/tmp", { ...CONFIG_DEFAULTS, scanners: { gitleaks: true } }, add, null);
+  const result = await runGitleaks("/tmp", { ...CONFIG_DEFAULTS, scanners: { gitleaks: true } }, add, null);
   if (result.status === "skipped") {
     assertEq(result.skipReason, "not installed", "skip reason when binary missing");
   }
 });
 
-test("scanners: disabled scanner returns skipped with config reason", () => {
+test("scanners: disabled scanner returns skipped with config reason", async () => {
   const findings     = [];
   const suppressions = { count: 0, byRule: {} };
   const add          = makeFindingProcessor(CONFIG_DEFAULTS, "/tmp", findings, suppressions);
   const config       = { ...CONFIG_DEFAULTS, scanners: { ...CONFIG_DEFAULTS.scanners, semgrep: false } };
 
-  const result = runSemgrep("/tmp", config, add, null);
+  const result = await runSemgrep("/tmp", config, add, null);
   assertEq(result.status, "skipped", "status skipped");
   assertEq(result.skipReason, "disabled in config", "reason");
 });
@@ -737,6 +733,8 @@ test("report: JSON schema shape is stable (snapshot)", () => {
   assert(Array.isArray(report.auditLog), "auditLog is array");
   assertEq(report.status, "FAIL", "HIGH finding → FAIL");
 });
+
+for (const t of pendingTests) await t();
 
 console.log("-------------------------");
 console.log(`${passed} passed, ${failed} failed`);

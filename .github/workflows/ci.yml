@@ -18,11 +18,17 @@ jobs:
         with:
           node-version: "20"
 
+      - name: Install dev dependencies
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
       - name: Install external scanners
         uses: ./.github/actions/install-scanners
 
-      - name: Run smoke tests
-        run: npm test
+      - name: Run tests with coverage
+        run: npm run test:coverage
 
   self-scan:
     name: Self-scan via bundled action

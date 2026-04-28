@@ -214,7 +214,7 @@ test("finding with no file path skips suppression check gracefully", () => {
   const d = scratch("no-file");
   // Payload references a non-existent absolute path → fs.readFileSync fails silently
   const payload = semgrepPayload("/nonexistent/path/that/does/not/exist.js", 5);
-  const { code, report } = runWithSemgrepStub(d, payload);
+  const { report } = runWithSemgrepStub(d, payload);
   // No crash, finding is present (no suppression applied)
   assertEq(report.findings.filter(f => f.tool === "semgrep").length, 1, "finding present");
   assertEq(report.suppressions.count, 0, "no suppression counted");
