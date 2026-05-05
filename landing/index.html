@@ -1,0 +1,183 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>SecGate — Free 1-hour Security Scan + Walkthrough</title>
+<meta name="description" content="A senior engineer runs SecGate (Semgrep + Gitleaks + osv-scanner + Trivy + npm audit) against your repo and walks you through every CRITICAL/HIGH finding on a 60-minute call. Free for the first 10 teams. No card, no subscription, no follow-up sales pitch.">
+<meta property="og:title" content="SecGate — Free 1-hour Security Scan + Walkthrough">
+<meta property="og:description" content="5 scanners, one report, one engineer walking you through it. Free for the first 10 teams. Open source MIT.">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --indigo:#6C63FF;
+  --indigo-bright:#7B73FF;
+  --green:#00d68f;
+  --green-glow:#00ff9d;
+  --amber:#ffaa00;
+  --bg:#0a0a0f;
+  --surface:#13131f;
+  --border:#2a1f3d;
+  --text:#f0e6ff;
+  --muted:#8b7aa8;
+  --header-bg:linear-gradient(135deg,#10142b 0%,#13131f 100%);
+  --max-w:880px;
+  --radius:6px;
+  --font:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+}
+html,body{background:var(--bg);color:var(--text);font-family:var(--font);line-height:1.55;font-size:16px;-webkit-font-smoothing:antialiased}
+a{color:var(--indigo-bright);text-decoration:none}
+a:hover{text-decoration:underline}
+main{max-width:var(--max-w);margin:0 auto;padding:64px 24px 96px}
+header{background:var(--header-bg);border-bottom:1px solid var(--border);padding:96px 24px 72px;position:relative;overflow:hidden}
+header::after{content:"";position:absolute;top:-40%;right:-10%;width:600px;height:600px;background:radial-gradient(circle,rgba(0,214,143,.08) 0%,transparent 60%);pointer-events:none}
+header .inner{max-width:var(--max-w);margin:0 auto;position:relative;z-index:1}
+.brand{display:flex;align-items:center;gap:10px;font-size:14px;color:var(--muted);margin-bottom:32px;letter-spacing:.05em;text-transform:uppercase}
+.brand-mark{width:28px;height:28px;border-radius:6px;background:linear-gradient(135deg,var(--indigo) 0%,var(--indigo-bright) 100%);display:inline-flex;align-items:center;justify-content:center;color:#fff;font-weight:700}
+.free-banner{display:inline-flex;align-items:center;gap:8px;padding:6px 14px;border-radius:999px;background:rgba(0,214,143,.12);border:1px solid rgba(0,214,143,.35);font-size:13px;color:var(--green-glow);margin-bottom:24px;font-weight:600;letter-spacing:.02em}
+.free-banner::before{content:"";width:6px;height:6px;border-radius:50%;background:var(--green-glow);box-shadow:0 0 8px var(--green-glow);animation:pulse 2s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.5}}
+h1{font-size:48px;line-height:1.08;font-weight:700;letter-spacing:-.02em;margin-bottom:20px;background:linear-gradient(135deg,#fff 0%,#c4b5e8 100%);-webkit-background-clip:text;background-clip:text;color:transparent}
+.lede{font-size:20px;color:#c4b5e8;max-width:640px;margin-bottom:36px}
+.cta-row{display:flex;gap:14px;flex-wrap:wrap;align-items:center}
+.btn{display:inline-block;padding:14px 28px;border-radius:8px;font-weight:600;font-size:16px;border:none;cursor:pointer;transition:transform .15s,box-shadow .15s}
+.btn-primary{background:var(--green);color:#06120c;box-shadow:0 0 24px rgba(0,214,143,.35)}
+.btn-primary:hover{transform:translateY(-1px);box-shadow:0 0 32px rgba(0,214,143,.55);text-decoration:none}
+.btn-secondary{background:transparent;color:var(--text);border:1px solid var(--border)}
+.btn-secondary:hover{background:var(--surface);text-decoration:none}
+section{margin-top:72px}
+section h2{font-size:24px;font-weight:600;letter-spacing:-.01em;margin-bottom:24px;color:#fff}
+section p{color:#c4b5e8;margin-bottom:16px;max-width:680px}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:16px;margin-top:8px}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:24px}
+.card h3{font-size:15px;font-weight:600;color:#fff;margin-bottom:8px;letter-spacing:.01em}
+.card p{font-size:14px;color:var(--muted);margin:0}
+ul.checks{list-style:none;padding:0;margin:0}
+ul.checks li{padding:10px 0;color:#c4b5e8;border-bottom:1px solid var(--border);display:flex;gap:12px;align-items:flex-start}
+ul.checks li:last-child{border-bottom:none}
+ul.checks li::before{content:"✓";color:var(--green);font-weight:700;flex-shrink:0;margin-top:1px}
+.faq dt{font-weight:600;color:#fff;margin-top:24px;margin-bottom:6px}
+.faq dd{color:var(--muted);margin-left:0}
+footer{margin-top:96px;padding-top:32px;border-top:1px solid var(--border);color:var(--muted);font-size:13px;text-align:center}
+.proof{font-size:13px;color:var(--muted);margin-top:14px}
+.proof strong{color:var(--text);font-weight:600}
+.scanner-grid{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px}
+.scanner-grid span{display:inline-block;padding:6px 12px;border-radius:6px;background:var(--surface);border:1px solid var(--border);font-size:13px;font-family:ui-monospace,monospace;color:var(--text)}
+.notice{background:rgba(255,170,0,.08);border:1px solid rgba(255,170,0,.25);border-radius:var(--radius);padding:18px 22px;font-size:14px;color:#ffd47a;margin-top:24px}
+.notice strong{color:#fff}
+@media (max-width:600px){
+  h1{font-size:34px}
+  .lede{font-size:17px}
+  header{padding:48px 20px 40px}
+  main{padding:40px 20px 64px}
+}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="inner">
+    <div class="brand">
+      <span class="brand-mark">⛨</span>
+      <span>SecGate · TinyDarkForge</span>
+    </div>
+    <div class="free-banner">First 10 teams · Free · No card</div>
+    <h1>Five security scanners. One hour. Zero cost.</h1>
+    <p class="lede">A senior engineer runs SecGate against your repo &mdash; Semgrep, Gitleaks, osv-scanner, Trivy, and npm audit, normalized into one report &mdash; and walks you through every CRITICAL or HIGH finding on a 60-minute call. <strong style="color:#fff">Free for the first 10 teams. No card. No subscription. No follow-up sales pitch.</strong></p>
+    <div class="cta-row">
+      <a class="btn btn-primary" href="mailto:daniel.oceno@gmail.com?subject=SecGate%20free%20audit%20%E2%80%94%20request&body=Hi%20Daniel%2C%0A%0AI%27d%20like%20a%20free%20SecGate%20audit.%0A%0ARepo%20type%3A%20%5Bpublic%2Fprivate%5D%0AStack%3A%20%5Be.g.%20Node%2C%20Python%2C%20Go%5D%0AApprox%20file%20count%3A%0AAvailable%20call%20times%3A%0A%0AThanks%21">Request audit · free</a>
+      <a class="btn btn-secondary" href="#what">See what you get</a>
+    </div>
+    <div class="proof"><strong>5 scanners</strong>, one normalized report, fails CI on CRITICAL/HIGH. Open source MIT. Already on npm.</div>
+  </div>
+</header>
+
+<main>
+
+<div class="notice">
+  <strong>Why free?</strong> We're using the first 10 audits to gather case studies and tune the report. In exchange for the free audit, you agree to a short follow-up call (10 min) and let us reference your name (or "an early-stage SaaS team" if you prefer to stay anonymous) on this site.
+</div>
+
+<section id="what">
+  <h2>What you get</h2>
+  <ul class="checks">
+    <li><strong style="color:#fff">A 60-minute Zoom call</strong> &mdash; we run SecGate against your repo live, on your machine. Your code never touches our infrastructure.</li>
+    <li><strong style="color:#fff">A normalized findings report</strong> &mdash; CRITICAL / HIGH / MEDIUM / LOW bands across all 5 scanners, deduplicated, with file paths and line numbers.</li>
+    <li><strong style="color:#fff">Walk-through of every CRITICAL and HIGH</strong> &mdash; what the rule means, what the actual exposure is, how to remediate or accept.</li>
+    <li><strong style="color:#fff">Top-3 fix priorities</strong> &mdash; ranked by exploit-likelihood × blast-radius, in plain English.</li>
+    <li><strong style="color:#fff">A SecGate workflow file for your repo</strong> &mdash; drop into <code style="font-family:ui-monospace,monospace;color:#fff">.github/workflows/</code> and your CI fails on new CRITICAL/HIGH from then on.</li>
+  </ul>
+</section>
+
+<section>
+  <h2>Who this is for</h2>
+  <div class="grid">
+    <div class="card">
+      <h3>Indie / early-stage founders</h3>
+      <p>You shipped fast. You haven't audited dependencies or secrets in months. Free hour, real findings, no subscription trap.</p>
+    </div>
+    <div class="card">
+      <h3>OSS maintainers</h3>
+      <p>Public repo? You're the buyer we want most. Real findings on real code make better case studies than fixtures.</p>
+    </div>
+    <div class="card">
+      <h3>Eng leads pre-audit</h3>
+      <p>SOC 2 / ISO / due diligence coming up? Run SecGate first. See what your auditor will see before they bill you for it.</p>
+    </div>
+  </div>
+</section>
+
+<section>
+  <h2>What SecGate actually runs</h2>
+  <p>Five industry-standard open source scanners, one normalized output. No AI in the loop, no telemetry, no account.</p>
+  <div class="scanner-grid">
+    <span>Semgrep</span>
+    <span>Gitleaks</span>
+    <span>osv-scanner</span>
+    <span>Trivy</span>
+    <span>npm audit</span>
+  </div>
+  <ul class="checks" style="margin-top:24px">
+    <li><strong style="color:#fff">Semgrep</strong> &mdash; static analysis for code-level vulns: insecure deserialization, SSRF, command injection, etc.</li>
+    <li><strong style="color:#fff">Gitleaks</strong> &mdash; secrets in commits and history (API keys, tokens, private keys)</li>
+    <li><strong style="color:#fff">osv-scanner</strong> &mdash; OSV.dev cross-ecosystem dependency CVE check (Node, Python, Go, Rust, Java)</li>
+    <li><strong style="color:#fff">Trivy</strong> &mdash; container image + filesystem scan for known CVEs</li>
+    <li><strong style="color:#fff">npm audit</strong> &mdash; npm registry vulnerability advisories</li>
+    <li><strong style="color:#fff">SecGate</strong> normalizes all five into one JSON + Markdown report, dedupes, scores, exits non-zero on CRITICAL/HIGH for CI gating</li>
+  </ul>
+</section>
+
+<section class="faq">
+  <h2>Common questions</h2>
+  <dl>
+    <dt>Does my code leave my machine?</dt>
+    <dd>No. SecGate is a CLI you run locally during the call. We see your terminal and the generated report on your screen. No source code or secrets are uploaded anywhere. Fine for repos under NDA.</dd>
+    <dt>What's the catch?</dt>
+    <dd>10 min of your time after the call for feedback, plus permission to reference your team on this site (or stay anonymous as "an early-stage SaaS team"). That's it. No payment, no upsell, no subscription drip.</dd>
+    <dt>What languages?</dt>
+    <dd>Strong: Node/JS/TS, Python, Go, Java, Ruby. Reasonable: Rust, PHP, .NET. The scanners cover most things; we'll do a 5-min pre-check before booking.</dd>
+    <dt>What if I find this useful and want it ongoing?</dt>
+    <dd>SecGate is open source MIT. Drop the GitHub Action into your CI, configure thresholds, done. We don't sell a hosted version &mdash; the OSS tool is the product.</dd>
+    <dt>What about my private repo?</dt>
+    <dd>Same as public. The CLI runs on your machine; we never see source. The only thing we ask is that you're comfortable showing the findings on a screen-share &mdash; we won't share or save them.</dd>
+    <dt>How do I know you won't pitch me something afterward?</dt>
+    <dd>Fair concern. Our paid offerings are <a href="https://lucen.dev">Lucen</a> ($499 code-quality DD) and <a href="https://luxfaber.dev">LuxFaber</a> ($499 agent-readiness audit) &mdash; you'll see them on this site. We won't bring them up on the SecGate call unless you ask.</dd>
+  </dl>
+</section>
+
+<section>
+  <h2>Ready?</h2>
+  <p>Email us. Tell us your repo type and stack. We'll reply within a day with a 30-min slot.</p>
+  <div class="cta-row">
+    <a class="btn btn-primary" href="mailto:daniel.oceno@gmail.com?subject=SecGate%20free%20audit%20%E2%80%94%20request&body=Hi%20Daniel%2C%0A%0AI%27d%20like%20a%20free%20SecGate%20audit.%0A%0ARepo%20type%3A%20%5Bpublic%2Fprivate%5D%0AStack%3A%20%5Be.g.%20Node%2C%20Python%2C%20Go%5D%0AApprox%20file%20count%3A%0AAvailable%20call%20times%3A%0A%0AThanks%21">Request audit · free</a>
+    <a class="btn btn-secondary" href="https://github.com/tinydarkforge/SecGate">SecGate on GitHub →</a>
+  </div>
+</section>
+
+<footer>
+  SecGate is open source · <a href="https://github.com/tinydarkforge/SecGate">github.com/tinydarkforge/SecGate</a> · <a href="https://www.npmjs.com/package/@tinydarkforge/secgate">npm</a> · Built by <a href="mailto:daniel.oceno@gmail.com">Daniel Oceno</a> &middot; TinyDarkForge
+</footer>
+
+</main>
+</body>
+</html>
