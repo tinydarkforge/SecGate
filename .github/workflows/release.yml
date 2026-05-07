@@ -55,6 +55,9 @@ jobs:
             exit 1
           fi
 
+      - name: Install external scanners
+        uses: ./.github/actions/install-scanners
+
       - name: Run smoke tests
         run: npm test
 

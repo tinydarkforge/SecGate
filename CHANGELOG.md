@@ -20,6 +20,20 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) + [Semantic Ver
 
 ---
 
+## [0.2.6] — 2026-05-07
+
+### Fixed
+- Release workflow now installs external scanners (Semgrep, Gitleaks, osv-scanner,
+  Trivy) before running smoke tests. Previously the build job ran `npm test`
+  without scanners, causing the `vulnerable-dockerfile fixture → trivy detects
+  misconfig` smoke test to fail in CI while passing locally.
+
+### Note
+- `v0.2.5` was tagged but never published to npm or GitHub Releases due to the
+  CI bug above. All `v0.2.5` content is included in `v0.2.6`.
+
+---
+
 ## [0.2.5] — 2026-05-07
 
 ### Fixed
