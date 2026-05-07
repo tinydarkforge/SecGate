@@ -20,6 +20,21 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) + [Semantic Ver
 
 ---
 
+## [0.2.5] — 2026-05-07
+
+### Fixed
+- `excludePaths` now matches against repo-relative paths, so absolute lockfile paths
+  reported by osv-scanner (e.g. fixtures, vendored trees) are correctly excluded
+  instead of leaking into scan results.
+- `runTrivyImage` Dockerfile discovery honors `excludePaths`, preventing fixture
+  Dockerfiles from being scanned as base images outside test mode.
+
+### Security
+- Suppressed two false-positive Semgrep findings on internal `path.resolve` and
+  `RegExp` helpers (target dir / glob compiler — not user-controlled).
+
+---
+
 ## [0.2.4] — 2026-04-24
 
 ### Changed
