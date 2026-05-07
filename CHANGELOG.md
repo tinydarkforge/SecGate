@@ -7,16 +7,58 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) + [Semantic Ver
 ## [Unreleased]
 
 ### Added
+- **Confidence profiles for the HTML report.** New `profile` config field
+  (`"curated"` default, `"strict"` opt-in) and matching `--profile` CLI flag.
+  Curated profile demotes known-noisy patterns to a collapsed Informational
+  details block instead of mixing them with actionable findings:
+  - Trivy `type: license` findings (governance, not security)
+  - Trivy base-image OS CVEs at LOW/MEDIUM (`scanMode: image` or
+    `signature: trivy-image:*`) — rarely reachable from app runtime
+  - CVEs >5 years old, severity != CRITICAL — upstream-bounded exploitability
+  - `UNKNOWN` severity findings — scanner couldn't classify
+  - `html.security.audit.missing-integrity` Semgrep rule — fires on every
+    `<script src>` including inline favicon SVGs
+  - `path-join-resolve-traversal` Semgrep rule — common false positive in
+    CLI tools that legitimately resolve user-supplied paths
+  Real-world impact: 2,628-file production codebase scan went from 1,858
+  raw findings → 46 actionable (98% demoted). Demotion is display-only;
+  the `failOn` policy alone gates CI exit code.
+- **Suppressed findings details block.** Findings dropped via inline
+  `# secgate:ignore` comments now get their own collapsed block with
+  per-rule counts in the HTML report (still excluded from counters).
+- **`.secgate.config.example.json`** — fully-commented example config
+  shipped at repo root; copy into your repo and edit.
+- **19 new unit tests** in `test/confidence.mjs` covering all demotion
+  paths (license, image-scan via tool/scanMode/signature, stale-CVE year
+  arithmetic, profile bypass).
+- **Sidebar shell parity with luxfaber + lucen.** SecGate report now
+  renders in the unified Midnight Blossom / Dawn Blossom shell shared
+  across the three TinyDarkForge products. 240px sticky sidebar with
+  brand block + score + band pill + PASS/FAIL chip + scroll-spy nav.
+  Theme toggle persisted in `localStorage`. 🛡 inline SVG favicon.
 
 ### Changed
+- HTML report `Findings` section meta line now reads
+  `N actionable · M informational · K suppressed` instead of raw total,
+  matching the curated/strict bucket split.
+- Tab labels show `<actionable> +<informational>` (e.g. `npm audit  3 +5`)
+  so demoted findings remain discoverable per-tool.
+- Sidebar `Reasoning` and `Remediation` nav counts now reflect filtered
+  (actionable-only) item counts. Previously they showed the per-finding
+  upstream count, which made the sidebar inconsistent with the Findings
+  count under curated profile.
 
-### Fixed
-
-### Security
-
-### Deprecated
-
-### Removed
+### Documentation
+- README: new "What we demote (and why)" section + `profile` row in
+  config reference table + JSON example + `--profile` CLI usage.
+- Landing page: new "What we don't pretend" section listing curated
+  profile, suppression UX, and the no-exploitability-oracle limit;
+  real-world reduction stat (1,858 → 46) cited inline.
+- `docs/tuning.md`: new "Confidence Profiles" section before Severity
+  Thresholds; reflects v0.2.6 behavior.
+- `docs/config.schema.json`: new `profile` enum field with description.
+- `DESIGN_PARITY.md`: SecGate added as third sister product alongside
+  luxfaber + lucen.
 
 ---
 

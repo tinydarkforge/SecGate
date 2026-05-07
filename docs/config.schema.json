@@ -16,6 +16,12 @@
       "default": ["critical", "high"],
       "examples": [["critical"], ["critical", "high", "medium"]]
     },
+    "profile": {
+      "type": "string",
+      "description": "HTML report confidence profile. 'curated' (default) demotes known-noisy patterns (Trivy license findings, base-image OS CVEs at LOW/MEDIUM, CVEs >5 years old, UNKNOWN severity, HTML SRI on inline scripts) to a collapsed Informational block. 'strict' renders every finding inline with no demotion. Findings are never dropped — only re-classified for display ordering. Profile selection does NOT affect the exit code; the failOn policy alone gates CI.",
+      "enum": ["curated", "strict"],
+      "default": "curated"
+    },
     "scanners": {
       "type": "object",
       "description": "Enable or disable individual scanners. Set a key to false to skip that scanner entirely.",

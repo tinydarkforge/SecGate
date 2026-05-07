@@ -6,7 +6,50 @@
 
 How to adjust severity thresholds, baseline noisy findings, suppress rules, toggle scanners, and tune CI vs local defaults.
 
-> Flags marked **(planned)** are not yet shipped; the rest of this document reflects `v0.2.3` behavior. The config epic tracking remaining work: [**#32**](https://github.com/tinydarkforge/SecGate/issues/32).
+> Flags marked **(planned)** are not yet shipped; the rest of this document reflects `v0.2.6` behavior. The config epic tracking remaining work: [**#32**](https://github.com/tinydarkforge/SecGate/issues/32).
+
+---
+
+## Confidence Profiles (display-only, never gating)
+
+SecGate's HTML report ships two confidence profiles. The exit code (`0` / `1`) is **never** affected — the `failOn` policy alone gates CI. Profiles only change which findings render inline vs in collapsed details blocks.
+
+### `curated` (default)
+
+Demotes known-noisy patterns to a collapsed **Informational** block so the actionable pane is triageable on first scroll.
+
+| Pattern | Why demoted |
+|---------|-------------|
+| `type: "license"` (Trivy SPDX flagging) | Governance/legal posture, not a security threat. |
+| Trivy base-image OS CVEs at LOW/MEDIUM (`scanMode: "image"` or `signature: "trivy-image:*"`) | Rarely reachable from app runtime (`apt-secure`, `libtinfo`, `perl-base`). CRITICAL/HIGH still surface inline. |
+| CVEs >5 years old, severity != CRITICAL | Upstream has decided exploitability is bounded. |
+| `UNKNOWN` severity | Scanner couldn't classify — surfaced for audit. |
+| `html.security.audit.missing-integrity` | Fires on every `<script src>` (incl. inline favicon SVGs). HSTS/COEP cover the real risk. |
+| `path-join-resolve-traversal` Semgrep rule | Common false positive in CLI tools that resolve user-supplied paths against a known root. |
+
+Real-world impact: 2,628-file production codebase scan went from **1,858 raw findings → 46 actionable** (98% demoted). The 46: 2 CRITICAL · 36 HIGH · 8 LOW.
+
+### `strict`
+
+No demotion. Every finding renders inline. Use for compliance audits or when re-validating the curated mute list.
+
+### Selecting a profile
+
+```json
+// .secgate.config.json
+{ "profile": "curated" }   // default
+{ "profile": "strict" }
+```
+
+Or via CLI override:
+
+```bash
+secgate . --profile strict
+```
+
+### Suppressed findings
+
+Findings dropped via inline `# secgate:ignore` comments (see [Suppression Syntax](#suppression-syntax) below) get their own collapsed details block with per-rule counts. Profiles do not change suppression behavior.
 
 ---
 
