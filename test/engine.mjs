@@ -167,6 +167,13 @@ test("utils: matchPattern wildcard", () => {
   assert(matchPattern("*-risk", "some-risk"), "suffix wildcard");
 });
 
+test("utils: matchPattern rejects patterns >256 chars to prevent ReDoS", () => {
+  const longPattern = "a*".repeat(200);
+  assert(!matchPattern(longPattern, "a".repeat(500)), "pattern >256 chars returns false");
+  const safePattern = "CVE-2024-*";
+  assert(matchPattern(safePattern, "CVE-2024-12345"), "normal patterns still work");
+});
+
 test("utils: matchesAny returns true when any pattern matches", () => {
   assert(matchesAny(["foo", "bar-*"], "bar-baz"), "wildcard in list");
   assert(!matchesAny(["foo", "bar-*"], "qux"), "no match in list");
