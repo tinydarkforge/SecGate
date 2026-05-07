@@ -239,6 +239,37 @@ test("scanners: makeFindingProcessor keeps findings when excludePaths is empty",
   assertEq(findings.length, 1, "no excludePaths → finding kept");
 });
 
+test("scanners: makeFindingProcessor deduplicates identical trivy-image findings", () => {
+  const findings     = [];
+  const suppressions = { count: 0, byRule: {} };
+  const add          = makeFindingProcessor(CONFIG_DEFAULTS, "/tmp", findings, suppressions);
+
+  const base = {
+    tool: "trivy", type: "dependency", severity: "HIGH",
+    signature: "trivy-image:node:12-alpine:CVE-2022-4450",
+    message: "openssl: double free", file: "node:12-alpine",
+    line: null, scanMode: "image", image: "node:12-alpine"
+  };
+  add({ ...base });
+  add({ ...base });
+  add({ ...base, message: "slightly different message" });
+  assertEq(findings.length, 1, "duplicate image CVE emitted only once");
+});
+
+test("scanners: makeFindingProcessor does not deduplicate same CVE across different images", () => {
+  const findings     = [];
+  const suppressions = { count: 0, byRule: {} };
+  const add          = makeFindingProcessor(CONFIG_DEFAULTS, "/tmp", findings, suppressions);
+
+  add({ tool: "trivy", type: "dependency", severity: "HIGH",
+        signature: "trivy-image:node:12-alpine:CVE-2022-4450",
+        message: "m", file: "node:12-alpine", line: null, image: "node:12-alpine" });
+  add({ tool: "trivy", type: "dependency", severity: "HIGH",
+        signature: "trivy-image:node:18-alpine:CVE-2022-4450",
+        message: "m", file: "node:18-alpine", line: null, image: "node:18-alpine" });
+  assertEq(findings.length, 2, "same CVE in different images both retained");
+});
+
 test("scanners: makeFindingProcessor sets fixable=true only for auto", () => {
   const findings     = [];
   const suppressions = { count: 0, byRule: {} };
