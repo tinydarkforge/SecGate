@@ -151,11 +151,14 @@ footer{margin-top:96px;padding-top:32px;border-top:1px solid var(--border);color
   <h2>What we don&rsquo;t pretend</h2>
   <p>Industry estimate: ~70% of raw SAST/SCA findings are noise. SecGate doesn&rsquo;t fix the underlying scanners, but we don&rsquo;t parade noise as a feature either.</p>
   <ul class="checks" style="margin-top:14px">
-    <li><strong style="color:#fff">Curated profile (default)</strong> &mdash; demotes known-noisy patterns (HTML SRI on inline scripts, base-image OS CVEs, &gt;5yr-old CVEs, UNKNOWN severity) to a collapsed Informational block. Findings aren&rsquo;t dropped &mdash; they&rsquo;re re-classified so the first impression is signal.</li>
+    <li><strong style="color:#fff">Curated profile (default)</strong> &mdash; demotes known-noisy patterns (Trivy license findings, base-image OS CVEs at LOW/MEDIUM, &gt;5yr-old CVEs, UNKNOWN severity, HTML SRI on inline scripts) to a collapsed Informational block. Findings aren&rsquo;t dropped &mdash; they&rsquo;re re-classified so the first impression is signal.</li>
     <li><strong style="color:#fff">Strict profile</strong> &mdash; available via <code style="font-family:ui-monospace,monospace;color:#fff">--profile strict</code>. Surfaces every finding inline. Use for compliance audits or to re-validate the curated mute list.</li>
     <li><strong style="color:#fff">Suppressed findings</strong> &mdash; inline <code style="font-family:ui-monospace,monospace;color:#fff"># secgate:ignore</code> comments get their own collapsed block with per-rule counts. Not hidden &mdash; just out of the way.</li>
     <li><strong style="color:#fff">No exploitability oracle</strong> &mdash; SecGate flags what scanners flag. Whether a CVE in your app&rsquo;s transitive tree is reachable from your code is a judgment call no static tool reliably makes. We help you triage; you make the call.</li>
   </ul>
+  <p style="margin-top:18px;color:#c4b5e8">
+    <strong style="color:#fff">Real-world impact.</strong> Dogfood scan of a 2,628-file production codebase: <strong style="color:#fff">1,858 raw findings &rarr; 46 actionable</strong> (98% demoted). Of the 46: 2 CRITICAL · 36 HIGH · 8 LOW. Triageable in one sitting instead of a wall of license rows and base-image CVEs.
+  </p>
 </section>
 
 <section class="faq">
