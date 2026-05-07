@@ -75,6 +75,10 @@ Options:
   --baseline          Compare against baseline; fail only on net-new findings
   --update-baseline   Write current findings to baseline file then exit 0
   --debug             Print raw scanner output
+  --profile <name>    Confidence profile: 'curated' (default; demotes
+                      noisy rules + base-image OS CVEs + stale CVEs to
+                      Informational) or 'strict' (no demotion). Findings
+                      are never dropped — only re-classified for display.
   --version, -v       Print version and exit
   --help, -h          Show this help
 
@@ -123,6 +127,7 @@ const FORMAT       = FORMAT_IDX >= 0 ? (argv[FORMAT_IDX + 1] || "json,html") : "
 const EMIT_SARIF   = FORMAT.split(",").map(s => s.trim()).includes("sarif");
 const BASELINE_MODE    = argv.includes("--baseline");
 const UPDATE_BASELINE  = argv.includes("--update-baseline");
+const PROFILE_FLAG     = argValue("--profile");
 
 const target = path.resolve(rawTarget);
 
@@ -168,6 +173,14 @@ const outputFile   = path.join(outputDir, "secgate-v7-report.json");
    ──────────────────────────────────────────────────────────────────────────── */
 
 const config = loadConfig(target);
+if (PROFILE_FLAG) {
+  if (PROFILE_FLAG === "curated" || PROFILE_FLAG === "strict") {
+    config.profile = PROFILE_FLAG;
+  } else {
+    console.error(`Invalid --profile '${PROFILE_FLAG}'. Use 'curated' or 'strict'.`);
+    process.exit(2);
+  }
+}
 
 const findings    = [];
 const suppressions = { count: 0, byRule: {} };
@@ -388,7 +401,7 @@ if (STRIP_PATHS) {
 fs.writeFileSync(outputFile, JSON.stringify(report, null, 2));
 
 const htmlFile = path.join(outputDir, `${repoName}.html`);
-fs.writeFileSync(htmlFile, renderHtml(report, repoName));
+fs.writeFileSync(htmlFile, renderHtml(report, repoName, config.profile));
 
 console.log("\nReport saved:", outputFile);
 console.log("HTML report:", htmlFile);

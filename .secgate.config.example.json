@@ -1,0 +1,41 @@
+{
+  "_comment": "SecGate config — drop into the root of any repo as .secgate.config.json. All fields optional; defaults shown below.",
+
+  "failOn": ["critical", "high"],
+  "_failOn": "Severities that cause exit 1. Lowercase. Common: ['critical','high'] (default), ['critical','high','medium'] (stricter), or ['critical'] (only block on the worst).",
+
+  "profile": "curated",
+  "_profile": "Confidence profile applied during HTML report rendering. 'curated' (default) demotes known-noisy rules (HTML SRI on inline scripts, base-image OS CVEs at LOW/MEDIUM, CVEs >5 years old, UNKNOWN severity) to an Informational details block. 'strict' shows everything inline. Findings are never dropped — only re-classified.",
+
+  "scanners": {
+    "semgrep":  true,
+    "gitleaks": true,
+    "npm":      true,
+    "osv":      true,
+    "trivy":    true
+  },
+  "_scanners": "Toggle individual scanners. Useful for muting npm audit on Yarn/pnpm-only repos, or muting Semgrep when you have a separate SAST.",
+
+  "ignore": [
+    "trivy-image:node:20-slim:CVE-2011-3374"
+  ],
+  "_ignore": "Drop findings entirely. Match against the finding signature (exact or glob, e.g. 'trivy-image:*:CVE-2011-*'). Prefer 'profile: curated' or '# secgate:ignore' inline comments over this — ignore is a sledgehammer.",
+
+  "severityOverrides": [
+    { "rule": "html.security.audit.missing-integrity", "severity": "low" }
+  ],
+  "_severityOverrides": "Re-classify findings by signature pattern. Use sparingly — better to address the root cause than to mute the signal.",
+
+  "excludePaths": [
+    "node_modules/**",
+    "dist/**",
+    "**/*.test.ts"
+  ],
+  "_excludePaths": "Skip findings whose file matches any of these globs. Applied AFTER scanners run — does not speed up scanning.",
+
+  "baselineFile": ".secgate-baseline.json",
+  "_baselineFile": "Path to the baseline file (relative to target). Used by --baseline and --update-baseline. Must stay inside the target directory.",
+
+  "customSemgrepRules": null,
+  "_customSemgrepRules": "Path to a custom Semgrep rules file/dir (relative to target). Null disables custom rules; built-in registry is always used."
+}
