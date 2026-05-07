@@ -599,6 +599,79 @@ test("intelligence: remediate blocks CRITICAL findings", () => {
   assert(result.confidence < 100, "confidence reduced for CRITICAL");
 });
 
+// #55: reasoning enrichment
+test("intelligence: analyze reasoning includes file, line, severity fields", () => {
+  const findings = [
+    { severity: "HIGH", type: "code", baseline: false, signature: "rule-x",
+      message: "Path traversal risk", file: "/app/lib/foo.mjs", line: 7 }
+  ];
+  const result = analyze(findings);
+  const r = result.reasoning[0];
+  assertEq(r.file, "/app/lib/foo.mjs", "file field");
+  assertEq(r.line, 7, "line field");
+  assertEq(r.severity, "HIGH", "severity field");
+});
+
+test("intelligence: analyze reasoning.why includes advisory and package for dep findings", () => {
+  const findings = [
+    { severity: "MEDIUM", type: "dependency", baseline: false,
+      signature: "npm:lodash@GHSA-29mw-wpgm-hmr9",
+      message: "ReDoS in lodash", file: "/app/package-lock.json", line: null }
+  ];
+  const result = analyze(findings);
+  const why = result.reasoning[0].why;
+  assert(why.includes("lodash"), `why includes package — got: ${why}`);
+  assert(why.includes("GHSA-29mw-wpgm-hmr9"), `why includes advisory — got: ${why}`);
+});
+
+test("intelligence: analyze reasoning.why includes file:line for code findings", () => {
+  const findings = [
+    { severity: "MEDIUM", type: "code", baseline: false,
+      signature: "javascript.path-traversal",
+      message: "User input in path.join", file: "/app/lib/baseline.mjs", line: 7 }
+  ];
+  const result = analyze(findings);
+  const why = result.reasoning[0].why;
+  assert(why.includes("baseline.mjs:7"), `why includes file:line — got: ${why}`);
+  assert(why.includes("User input in path.join"), `why includes message — got: ${why}`);
+});
+
+// #56: remediation cmd population
+test("intelligence: patch osv returns npm install cmd for npm ecosystem", () => {
+  const f = { tool: "osv", type: "dependency", signature: "npm:lodash@GHSA-29mw-wpgm-hmr9",
+               message: "ReDoS in lodash", file: null, line: null };
+  const p = patch(f);
+  assertEq(p.action, "upgrade dependency", "action");
+  assertEq(p.cmd, "npm install lodash@latest", "cmd");
+  assertEq(p.note, "ReDoS in lodash", "note from message");
+});
+
+test("intelligence: patch semgrep returns file:line cmd", () => {
+  const f = { tool: "semgrep", type: "code", signature: "rule-x",
+               message: "Path traversal", file: "/app/lib/baseline.mjs", line: 7 };
+  const p = patch(f);
+  assertEq(p.action, "manual code fix", "action");
+  assert(p.cmd.includes("/app/lib/baseline.mjs:7"), `cmd has file:line — got: ${p.cmd}`);
+  assertEq(p.note, "Path traversal", "note from message");
+});
+
+test("intelligence: patch gitleaks returns git filter-repo cmd when file present", () => {
+  const f = { tool: "gitleaks", type: "secret", signature: "AWS_KEY",
+               file: "/app/config/secrets.json", line: 3 };
+  const p = patch(f);
+  assertEq(p.action, "remove + rotate secret", "action");
+  assert(p.cmd && p.cmd.includes("git filter-repo"), `cmd includes filter-repo — got: ${p.cmd}`);
+});
+
+test("intelligence: patch trivy iac returns cmd referencing file", () => {
+  const f = { tool: "trivy", type: "iac", signature: "DS-0002:Dockerfile",
+               message: "Image user should not be root", file: "Dockerfile", line: null };
+  const p = patch(f);
+  assertEq(p.action, "fix misconfiguration", "action");
+  assert(p.cmd && p.cmd.includes("Dockerfile"), `cmd references file — got: ${p.cmd}`);
+  assertEq(p.note, "Image user should not be root", "note from message");
+});
+
 /* ────────────────────────────────────────────────────────────────────────────
    lib/report.mjs
    ──────────────────────────────────────────────────────────────────────────── */
