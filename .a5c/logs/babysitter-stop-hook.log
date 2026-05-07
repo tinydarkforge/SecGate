@@ -208,3 +208,17 @@
 [INFO] 2026-05-07T15:22:50.119Z [session=f8e4ae8c-4719-497e-9875-85d22a73be6f] Resolved stateDir: /Users/doceno/.a5c/state
 [INFO] 2026-05-07T15:22:50.119Z [session=f8e4ae8c-4719-497e-9875-85d22a73be6f] Checking session file at: /Users/doceno/.a5c/state/f8e4ae8c-4719-497e-9875-85d22a73be6f.md
 [INFO] 2026-05-07T15:22:50.120Z [session=f8e4ae8c-4719-497e-9875-85d22a73be6f] No active loop found for session f8e4ae8c-4719-497e-9875-85d22a73be6f — allowing exit
+[INFO] 2026-05-07T15:32:42.434Z handleHookRunStop started
+[INFO] 2026-05-07T15:32:42.436Z Hook input received
+[INFO] 2026-05-07T15:32:42.436Z [session=f8e4ae8c-4719-497e-9875-85d22a73be6f] Session ID: f8e4ae8c-4719-497e-9875-85d22a73be6f
+[INFO] 2026-05-07T15:32:42.436Z [session=f8e4ae8c-4719-497e-9875-85d22a73be6f] Resolved pluginRoot: /Users/doceno/.claude/plugins/cache/a5c-ai/babysitter/4.0.157
+[INFO] 2026-05-07T15:32:42.436Z [session=f8e4ae8c-4719-497e-9875-85d22a73be6f] Resolved stateDir: /Users/doceno/.a5c/state
+[INFO] 2026-05-07T15:32:42.436Z [session=f8e4ae8c-4719-497e-9875-85d22a73be6f] Checking session file at: /Users/doceno/.a5c/state/f8e4ae8c-4719-497e-9875-85d22a73be6f.md
+[INFO] 2026-05-07T15:32:42.440Z [session=f8e4ae8c-4719-497e-9875-85d22a73be6f] No run associated with session — allowing exit
+[INFO] 2026-05-07T15:35:47.852Z handleHookRunStop started
+[INFO] 2026-05-07T15:35:47.854Z Hook input received
+[INFO] 2026-05-07T15:35:47.854Z [session=f8e4ae8c-4719-497e-9875-85d22a73be6f] Session ID: f8e4ae8c-4719-497e-9875-85d22a73be6f
+[INFO] 2026-05-07T15:35:47.854Z [session=f8e4ae8c-4719-497e-9875-85d22a73be6f] Resolved pluginRoot: /Users/doceno/.claude/plugins/cache/a5c-ai/babysitter/4.0.157
+[INFO] 2026-05-07T15:35:47.854Z [session=f8e4ae8c-4719-497e-9875-85d22a73be6f] Resolved stateDir: /Users/doceno/.a5c/state
+[INFO] 2026-05-07T15:35:47.854Z [session=f8e4ae8c-4719-497e-9875-85d22a73be6f] Checking session file at: /Users/doceno/.a5c/state/f8e4ae8c-4719-497e-9875-85d22a73be6f.md
+[INFO] 2026-05-07T15:35:47.854Z [session=f8e4ae8c-4719-497e-9875-85d22a73be6f] No active loop found for session f8e4ae8c-4719-497e-9875-85d22a73be6f — allowing exit
