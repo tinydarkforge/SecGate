@@ -24,6 +24,11 @@ import {
   renderHtml,
   buildSarif
 } from "./lib/report.mjs";
+import {
+  SCORE_VERSION,
+  computeScore,
+  computeToolScores
+} from "./lib/score.mjs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const pkg = JSON.parse(
@@ -171,19 +176,20 @@ const toolStatus     = Object.fromEntries(TOOLS.map(t => [t, "pending"]));
 const toolSkipReason = {};
 
 const report = {
-  version:   pkg.version,
-  timestamp: new Date().toISOString(),
-  target:    reportTarget,
-  mode:      APPLY ? "apply" : "dry-run",
-  status:    "PASS",
-  summary:   { critical: 0, high: 0, medium: 0, low: 0, unknown: 0 },
-  findings:  [],
-  tools:     toolStatus,
+  version:       pkg.version,
+  timestamp:     new Date().toISOString(),
+  target:        reportTarget,
+  mode:          APPLY ? "apply" : "dry-run",
+  status:        "PASS",
+  securityScore: 100,
+  summary:       { critical: 0, high: 0, medium: 0, low: 0, unknown: 0 },
+  findings:      [],
+  tools:         toolStatus,
   toolSkipReason,
   suppressions,
-  intelligence: { riskScore: 0, attackSurface: [], reasoning: [], recommendations: [] },
-  remediation:  { plan: [], stagedChanges: [], executed: [], blocked: [], confidence: 100 },
-  auditLog:  []
+  intelligence:  { riskScore: 0, attackSurface: [], reasoning: [], recommendations: [] },
+  remediation:   { plan: [], stagedChanges: [], executed: [], blocked: [], confidence: 100 },
+  auditLog:      []
 };
 
 function auditLog(event, detail) {
@@ -315,11 +321,37 @@ report.remediation   = remediate(activeFindings, {
   reportTarget,
   auditLog
 });
-report.status = resolveStatus(activeFindings, config.failOn, BASELINE_MODE);
+report.status        = resolveStatus(activeFindings, config.failOn, BASELINE_MODE);
+report.securityScore = computeScore(activeFindings);
+report.toolScores    = computeToolScores(activeFindings, ["semgrep", "gitleaks", "npm", "osv", "trivy"]);
 
 /* ────────────────────────────────────────────────────────────────────────────
    OUTPUT
    ──────────────────────────────────────────────────────────────────────────── */
+
+/* ── Security Score header (LuxFaber-parity: emerald>=90, amber>=70, red<70) ── */
+function scoreBar(n) {
+  const filled = Math.round(n / 5);
+  const empty  = 20 - filled;
+  return "█".repeat(filled) + "░".repeat(empty);
+}
+function scoreColor(n, s) {
+  if (!process.stdout.isTTY) return s;
+  if (n >= 90) return `\x1b[32m${s}\x1b[0m`;
+  if (n >= 70) return `\x1b[33m${s}\x1b[0m`;
+  return `\x1b[31m${s}\x1b[0m`;
+}
+
+const sc = report.securityScore;
+console.log("\n────────────────────────────────");
+console.log(`Security Score: ${scoreColor(sc, `${sc} / 100`)}   ${scoreColor(sc, scoreBar(sc))}  rule ${SCORE_VERSION}`);
+console.log("");
+
+const TOOL_LABEL = { semgrep: "Semgrep", gitleaks: "Gitleaks", npm: "npm audit", osv: "osv-scanner", trivy: "Trivy" };
+for (const [key, label] of Object.entries(TOOL_LABEL)) {
+  const ts = report.toolScores[key];
+  console.log(`  ${label.padEnd(12)} ${scoreColor(ts, `${ts} / 100`)}   ${scoreColor(ts, scoreBar(ts))}`);
+}
 
 console.log("\n────────────────────────────────");
 console.log("STATUS:", report.status);

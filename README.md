@@ -28,6 +28,24 @@
 
 ---
 
+## ░▒▓█ Security Score
+
+Every run now produces a **Security Score (0–100)** in addition to the binary PASS/FAIL gate. The score is deterministic: same findings → same score every time.
+
+```
+Security Score: 62 / 100   ████████████░░░░░░░░  rule v1
+
+  Semgrep      97 / 100   ███████████████████░
+  Gitleaks     75 / 100   ███████████████░░░░░
+  npm audit    90 / 100   ██████████████████░░
+  osv-scanner 100 / 100   ████████████████████
+  Trivy        62 / 100   ████████████░░░░░░░░
+```
+
+Penalty per finding: CRITICAL −25 · HIGH −10 · MEDIUM −3 · LOW −1 · INFO/UNKNOWN 0. Floor: 0. Color thresholds: green ≥ 90, amber ≥ 70, red < 70. The binary gate (exit 1 on CRITICAL/HIGH) is unchanged. `securityScore` and `toolScores` are also written to `secgate-v7-report.json` for CI dashboards and trend tracking.
+
+---
+
 ## ░▒▓█ TL;DR
 
 ```bash
