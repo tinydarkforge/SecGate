@@ -24,7 +24,9 @@
 
 > **SecGate** is a tiny security gate for CI/CD. Runs **Semgrep, Gitleaks, osv-scanner, Trivy, and npm audit** in one command, normalizes findings into one report, fails the pipeline on CRITICAL or HIGH. No account. No telemetry. Local files only.
 
-> **Status:** Early release (`v0.2.4`). Published with [npm provenance](https://docs.npmjs.com/generating-provenance-statements). Report vulnerabilities via [SECURITY.md](SECURITY.md).
+> **Honest positioning:** SecGate is a **triage accelerator**, not a defect oracle. The five scanners it wraps each have real false-positive rates (industry estimate: ~70% of raw SCA/SAST findings are noise). SecGate's job is to surface what's actionable and demote what's not — see [What we demote (and why)](#-what-we-demote-and-why) below.
+
+> **Status:** Early release (`v0.2.6`). Published with [npm provenance](https://docs.npmjs.com/generating-provenance-statements). Report vulnerabilities via [SECURITY.md](SECURITY.md).
 
 ---
 
@@ -80,6 +82,39 @@ SecGate does not ship its own analysis engine. Every finding originates from one
 | **Trivy**     | IaC + License + Image     | Terraform, Kubernetes, Dockerfile, CloudFormation. Base-image CVEs.   |
 
 Missing scanner binaries are **skipped gracefully** and noted in the report. No scanner is required; SecGate uses whatever is on `$PATH`.
+
+---
+
+## ░▒▓█ What we demote (and why)
+
+The HTML report has **two confidence profiles**:
+
+- **`curated` (default)** — actionable findings render inline. Known-noisy patterns get demoted to a collapsed **Informational** block. The exit code (`0`/`1`) is **unchanged** — demotion is presentation-only, not policy.
+- **`strict`** — every finding renders inline with no demotion. Use for compliance audits or when tuning the curated rule list.
+
+Curated profile demotes:
+
+| Pattern | Why demoted |
+|---------|-------------|
+| `html.security.audit.missing-integrity` | Fires on every `<script src>` without an SRI hash, including inline favicon SVGs. Real CDN-MITM risk is covered by HSTS / COEP on most modern stacks. |
+| Trivy base-image OS CVEs at LOW/MEDIUM (`tool: trivyImage`) | Rarely reachable from a Node/Python/Go app runtime (`apt-secure`, `libtinfo`, `perl-base`). CRITICAL/HIGH still surface inline. |
+| CVEs >5 years old, severity != CRITICAL | If upstream hasn't shipped a fix in 5+ years, exploitability is bounded. |
+| `UNKNOWN` severity findings | Scanner couldn't classify — surfaced for audit, not blocked. |
+| `path-join-resolve-traversal` Semgrep rule | Common false positive in CLI tools that legitimately resolve user-supplied paths against a known root. |
+
+Findings are **never dropped** by curated demotion — they're re-classified for display ordering. Suppressed findings (inline `# secgate:ignore` comments) get their own collapsed block with per-rule counts for audit trail.
+
+Toggle via `.secgate.config.json`:
+
+```json
+{ "profile": "curated" }   // or "strict"
+```
+
+Or via CLI:
+
+```bash
+secgate . --profile strict
+```
 
 ---
 
@@ -168,6 +203,9 @@ secgate /path/to/project --output-dir /tmp/reports
 # Strip absolute paths from the report (auto-on when CI=true)
 secgate /path/to/project --strip-paths
 
+# Show all findings inline (skip curated demotion)
+secgate . --profile strict
+
 # Version / help
 secgate --version
 secgate --help
@@ -208,6 +246,7 @@ Create `.secgate.config.json` in your scan target directory. All fields are opti
 
 ```json
 {
+  "profile": "curated",
   "failOn": ["critical", "high"],
   "scanners": {
     "semgrep": true,
@@ -226,12 +265,15 @@ Create `.secgate.config.json` in your scan target directory. All fields are opti
 }
 ```
 
+A fully-commented example config lives at [`.secgate.config.example.json`](.secgate.config.example.json) — copy into your repo as `.secgate.config.json` and edit.
+
 JSON Schema: [`docs/config.schema.json`](docs/config.schema.json)
 
 ### Field reference
 
 | Field                | Type            | Default                    | Description                                                                 |
 |----------------------|-----------------|----------------------------|-----------------------------------------------------------------------------|
+| `profile`            | `string`        | `"curated"`                | HTML report confidence profile: `"curated"` or `"strict"` (see [demotion table](#-what-we-demote-and-why)) |
 | `failOn`             | `string[]`      | `["critical","high"]`      | Severity tiers that cause exit `1`                                          |
 | `scanners`           | `object`        | all `true`                 | Set any scanner to `false` to skip it                                       |
 | `severityOverrides`  | `array`         | `[]`                       | Override severity for matching signatures (glob `*` supported)              |
