@@ -97,6 +97,7 @@ test("config: CONFIG_DEFAULTS has expected shape", () => {
   assert(typeof CONFIG_DEFAULTS.scanners === "object", "scanners is object");
   assert(Array.isArray(CONFIG_DEFAULTS.severityOverrides), "severityOverrides is array");
   assert(Array.isArray(CONFIG_DEFAULTS.ignore), "ignore is array");
+  assert(Array.isArray(CONFIG_DEFAULTS.excludePaths), "excludePaths is array");
   assertEq(CONFIG_DEFAULTS.baselineFile, ".secgate-baseline.json", "baselineFile default");
   assertEq(CONFIG_DEFAULTS.customSemgrepRules, null, "customSemgrepRules default null");
 });
@@ -211,6 +212,31 @@ test("scanners: makeFindingProcessor drops ignored signatures", () => {
   add({ tool: "npm", type: "dependency", severity: "HIGH",     signature: "CVE-2023-1111", message: "m" });
   assertEq(findings.length, 1, "CVE-2024 dropped, CVE-2023 kept");
   assertEq(findings[0].signature, "CVE-2023-1111", "kept finding is CVE-2023");
+});
+
+test("scanners: makeFindingProcessor drops findings whose file matches excludePaths", () => {
+  const findings     = [];
+  const suppressions = { count: 0, byRule: {} };
+  const config       = { ...CONFIG_DEFAULTS, excludePaths: ["test/fixtures/**"] };
+  const add          = makeFindingProcessor(config, "/tmp", findings, suppressions);
+
+  add({ tool: "trivy", type: "iac", severity: "HIGH", signature: "DS001:Dockerfile", message: "m",
+        file: "test/fixtures/vulnerable-dockerfile/Dockerfile" });
+  add({ tool: "npm",   type: "dependency", severity: "HIGH", signature: "lodash", message: "m",
+        file: "package-lock.json" });
+  assertEq(findings.length, 1, "fixture finding dropped, real finding kept");
+  assertEq(findings[0].signature, "lodash", "only non-fixture finding present");
+});
+
+test("scanners: makeFindingProcessor keeps findings when excludePaths is empty", () => {
+  const findings     = [];
+  const suppressions = { count: 0, byRule: {} };
+  const config       = { ...CONFIG_DEFAULTS, excludePaths: [] };
+  const add          = makeFindingProcessor(config, "/tmp", findings, suppressions);
+
+  add({ tool: "npm", type: "dependency", severity: "HIGH", signature: "pkg", message: "m",
+        file: "test/fixtures/some/path" });
+  assertEq(findings.length, 1, "no excludePaths → finding kept");
 });
 
 test("scanners: makeFindingProcessor sets fixable=true only for auto", () => {
