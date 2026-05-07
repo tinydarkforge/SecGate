@@ -77,6 +77,36 @@ test("curated: gitleaks high secret stays actionable", () => {
   assert(getConfidence(f, "curated") === "actionable");
 });
 
+test("curated: trivy license finding demoted (type=license)", () => {
+  const f = { tool: "trivy", type: "license", severity: "LOW", signature: "MIT:lodash", message: "License MIT flagged" };
+  assert(getConfidence(f, "curated") === "informational");
+});
+
+test("curated: trivy image LOW with tool=trivy + scanMode=image demoted", () => {
+  const f = { tool: "trivy", type: "dependency", severity: "LOW", scanMode: "image", signature: "trivy-image:node:20-slim:CVE-2026-99999", image: "node:20-slim" };
+  assert(getConfidence(f, "curated") === "informational");
+});
+
+test("curated: trivy image MEDIUM via signature prefix demoted", () => {
+  const f = { tool: "trivy", type: "dependency", severity: "MEDIUM", signature: "trivy-image:python:3.12-slim:CVE-2026-1234" };
+  assert(getConfidence(f, "curated") === "informational");
+});
+
+test("curated: trivy image HIGH stays actionable even with scanMode=image", () => {
+  const f = { tool: "trivy", type: "dependency", severity: "HIGH", scanMode: "image", signature: "trivy-image:node:20-slim:CVE-2026-77777" };
+  assert(getConfidence(f, "curated") === "actionable");
+});
+
+test("curated: trivy filesystem dependency CVE stays actionable (not image)", () => {
+  const f = { tool: "trivy", type: "dependency", severity: "MEDIUM", signature: "trivy-vuln:lodash:CVE-2026-1234", file: "package-lock.json" };
+  assert(getConfidence(f, "curated") === "actionable");
+});
+
+test("strict: license finding stays actionable", () => {
+  const f = { tool: "trivy", type: "license", severity: "LOW", signature: "MIT:lodash" };
+  assert(getConfidence(f, "strict") === "actionable");
+});
+
 // ── Strict profile ───────────────────────────────────────────────────
 test("strict: HTML missing-integrity stays actionable", () => {
   const f = { tool: "semgrep", severity: "MEDIUM", signature: "html.security.audit.missing-integrity.missing-integrity" };

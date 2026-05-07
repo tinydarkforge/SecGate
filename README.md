@@ -96,11 +96,14 @@ Curated profile demotes:
 
 | Pattern | Why demoted |
 |---------|-------------|
-| `html.security.audit.missing-integrity` | Fires on every `<script src>` without an SRI hash, including inline favicon SVGs. Real CDN-MITM risk is covered by HSTS / COEP on most modern stacks. |
-| Trivy base-image OS CVEs at LOW/MEDIUM (`tool: trivyImage`) | Rarely reachable from a Node/Python/Go app runtime (`apt-secure`, `libtinfo`, `perl-base`). CRITICAL/HIGH still surface inline. |
-| CVEs >5 years old, severity != CRITICAL | If upstream hasn't shipped a fix in 5+ years, exploitability is bounded. |
-| `UNKNOWN` severity findings | Scanner couldn't classify — surfaced for audit, not blocked. |
-| `path-join-resolve-traversal` Semgrep rule | Common false positive in CLI tools that legitimately resolve user-supplied paths against a known root. |
+| **License findings** (`type: license` from Trivy) | Trivy flags every dep license (MIT, Apache-2.0, LGPL, etc.) as a finding. License posture is governance/legal, not security — belongs in its own pane, not next to CVEs. |
+| **Trivy base-image OS CVEs at LOW/MEDIUM** (`scanMode: image` or `signature: trivy-image:*`) | Rarely reachable from a Node/Python/Go app runtime (`apt-secure`, `libtinfo`, `perl-base`). CRITICAL/HIGH still surface inline. |
+| **CVEs >5 years old**, severity != CRITICAL | If upstream hasn't shipped a fix in 5+ years, exploitability is bounded. |
+| **`UNKNOWN` severity** findings | Scanner couldn't classify — surfaced for audit, not blocked. |
+| **`html.security.audit.missing-integrity`** | Fires on every `<script src>` without an SRI hash, including inline favicon SVGs. Real CDN-MITM risk is covered by HSTS / COEP on most modern stacks. |
+| **`path-join-resolve-traversal`** Semgrep rule | Common false positive in CLI tools that legitimately resolve user-supplied paths against a known root. |
+
+**Real-world impact:** dogfood scan of a 2,628-file CirrusTranslate codebase: `1858 → 46` actionable findings (98% noise demoted). Of the 46: 2 CRITICAL + 36 HIGH + 8 LOW. Triageable in one sitting instead of a wall of license rows + base-image CVEs.
 
 Findings are **never dropped** by curated demotion — they're re-classified for display ordering. Suppressed findings (inline `# secgate:ignore` comments) get their own collapsed block with per-rule counts for audit trail.
 
