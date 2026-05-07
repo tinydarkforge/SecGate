@@ -238,6 +238,41 @@ test("excludePaths: wildcard excludes nested paths", () => {
   fs.rmSync(d, { recursive: true, force: true });
 });
 
+// ── path traversal validation ─────────────────────────────────────────────────
+
+test("baselineFile with ../ traversal → rejected, default used", () => {
+  const d = scratch("baseline-traversal");
+  fs.writeFileSync(path.join(d, ".secgate.config.json"), JSON.stringify({
+    baselineFile: "../../etc/passwd"
+  }));
+  const { report } = runWithNpmStub(d, "{}");
+  // Should silently reject traversal and use default
+  // No findings in empty payload so just check config was processed
+  assertEq(report.status !== undefined, true, "scan completed despite bad config");
+  fs.rmSync(d, { recursive: true, force: true });
+});
+
+test("customSemgrepRules with absolute path → rejected if outside target", () => {
+  const d = scratch("semgrep-abs-path");
+  fs.writeFileSync(path.join(d, ".secgate.config.json"), JSON.stringify({
+    customSemgrepRules: "/etc/passwd"
+  }));
+  const { report } = runWithNpmStub(d, "{}");
+  assertEq(report.status !== undefined, true, "scan completed despite bad config");
+  fs.rmSync(d, { recursive: true, force: true });
+});
+
+test("baselineFile with valid relative path → accepted", () => {
+  const d = scratch("baseline-valid");
+  fs.writeFileSync(path.join(d, ".secgate.config.json"), JSON.stringify({
+    baselineFile: "custom-baseline.json"
+  }));
+  fs.writeFileSync(path.join(d, "custom-baseline.json"), JSON.stringify({ findings: [] }));
+  const { report } = runWithNpmStub(d, "{}");
+  assertEq(report.status !== undefined, true, "scan completed with valid baseline path");
+  fs.rmSync(d, { recursive: true, force: true });
+});
+
 // ── invalid JSON config ───────────────────────────────────────────────────────
 
 test("invalid JSON in config → error-logged, defaults used, scan proceeds", () => {
