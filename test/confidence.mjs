@@ -169,6 +169,40 @@ test("informationalReason: UNKNOWN returns 'unknown severity'", () => {
   assert(informationalReason(f) === "unknown severity");
 });
 
+// ── Display-filtering invariants (curated/strict never drop a finding) ──
+const SAMPLE_FINDINGS = [
+  { tool: "semgrep", severity: "HIGH", signature: "javascript.lang.security.audit.eval" },
+  { tool: "semgrep", severity: "MEDIUM", signature: "html.security.audit.missing-integrity.x" },
+  { tool: "trivy", severity: "LOW", scanMode: "image", signature: "trivy-image:node:20-slim:CVE-2026-1" },
+  { tool: "trivy", severity: "MEDIUM", type: "license", signature: "MIT" },
+  { tool: "osv", severity: "UNKNOWN", signature: "GHSA-xxxx" },
+  { tool: "trivy", severity: "MEDIUM", signature: "trivy-image:node:20-slim:CVE-2010-1234" },
+  { tool: "npm", severity: "CRITICAL", signature: "GHSA-yyyy" },
+  { tool: "gitleaks", severity: "HIGH", signature: "aws-access-key" },
+];
+
+test("curated: bucketing partitions findings (nothing dropped)", () => {
+  const { actionable, informational } = bucketByConfidence(SAMPLE_FINDINGS, "curated");
+  assert(actionable.length + informational.length === SAMPLE_FINDINGS.length,
+    `expected ${SAMPLE_FINDINGS.length}, got ${actionable.length}+${informational.length}`);
+  const all = new Set([...actionable, ...informational]);
+  for (const f of SAMPLE_FINDINGS) assert(all.has(f), "finding missing from buckets");
+  assert(informational.length > 0, "curated should demote some of the noisy samples");
+});
+
+test("strict: every finding is actionable (no demotion, nothing dropped)", () => {
+  const { actionable, informational } = bucketByConfidence(SAMPLE_FINDINGS, "strict");
+  assert(informational.length === 0, "strict should not demote anything");
+  assert(actionable.length === SAMPLE_FINDINGS.length, "strict should keep every finding actionable");
+});
+
+test("curated and strict see the same total finding count", () => {
+  const c = bucketByConfidence(SAMPLE_FINDINGS, "curated");
+  const s = bucketByConfidence(SAMPLE_FINDINGS, "strict");
+  assert(c.actionable.length + c.informational.length === s.actionable.length + s.informational.length,
+    "profile must not change the underlying finding count — only the actionable/informational split");
+});
+
 console.log("------------------------");
 console.log(`${passed} passed, ${failed} failed`);
 process.exit(failed > 0 ? 1 : 0);

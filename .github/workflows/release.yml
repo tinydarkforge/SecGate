@@ -255,3 +255,15 @@ jobs:
         run: npm publish --access public --provenance
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Verify the published package installs and runs
+        run: |
+          PKG_VERSION="$(node -p "require('./package.json').version")"
+          echo "Waiting for @tinydarkforge/secgate@${PKG_VERSION} to be visible on the registry…"
+          for i in 1 2 3 4 5 6; do
+            if npm view "@tinydarkforge/secgate@${PKG_VERSION}" version >/dev/null 2>&1; then break; fi
+            sleep 15
+          done
+          npm install -g "@tinydarkforge/secgate@${PKG_VERSION}"
+          secgate --version
+          secgate --help

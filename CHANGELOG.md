@@ -18,6 +18,12 @@ confidence-profile work and the timeout/network-disclosure changes — ships in
   wedged scanner binary can no longer stall SecGate or the CI job. Individual
   callers may still override `timeout` (Trivy image scans keep their tighter
   120s budget). Covered by `test/timeout.mjs`.
+- **Display-filtering invariant tests** in `test/confidence.mjs`: `curated`
+  and `strict` profiles partition the same finding set (nothing dropped, only
+  the actionable/informational split changes); `strict` never demotes.
+- **Post-publish healthcheck** in the release workflow — installs the freshly
+  published `@tinydarkforge/secgate@<version>` and runs `--version` / `--help`
+  so a broken `bin` entry or tarball is caught at release time.
 - **Confidence profiles for the HTML report.** New `profile` config field
   (`"curated"` default, `"strict"` opt-in) and matching `--profile` CLI flag.
   Curated profile demotes known-noisy patterns to a collapsed Informational
@@ -58,6 +64,13 @@ confidence-profile work and the timeout/network-disclosure changes — ships in
   (actionable-only) item counts. Previously they showed the per-finding
   upstream count, which made the sidebar inconsistent with the Findings
   count under curated profile.
+
+### Changed
+- Landing-page CTAs no longer point at a personal Gmail — replaced with
+  `hello@stelnyx.com` (a Cal.com booking flow is the planned follow-up).
+- GitHub repo description rewritten to match reality ("deterministic security
+  gate", not "autonomous AI SOC engine").
+- Stale `docs/github-issues/*` planning templates moved to `docs/archive/`.
 
 ### Documentation
 - README: new **"Network access"** section + per-scanner network markers in
