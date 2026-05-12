@@ -66,6 +66,11 @@ confidence-profile work and the timeout/network-disclosure changes — ships in
   count under curated profile.
 
 ### Changed
+- Scanner JSON-parse failures are no longer swallowed silently. Each scanner's
+  output is parsed via `parseToolJson()` (in `lib/utils.mjs`); on failure it
+  logs the error + the first ~200 bytes of raw output through `--debug` before
+  rethrowing, so a `{ status: "error" }` result is now diagnosable instead of
+  opaque.
 - Landing-page CTAs no longer point at a personal Gmail — replaced with
   `hello@stelnyx.com` (a Cal.com booking flow is the planned follow-up).
 - GitHub repo description rewritten to match reality ("deterministic security
