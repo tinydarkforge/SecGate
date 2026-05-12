@@ -22,7 +22,7 @@
   <a href="https://github.com/tinydarkforge/SecGate/actions/workflows/ci.yml"><img alt="self-scan" src="https://github.com/tinydarkforge/SecGate/actions/workflows/ci.yml/badge.svg?branch=main"></a>
 </p>
 
-> **SecGate** is a tiny security gate for CI/CD. Runs **Semgrep, Gitleaks, osv-scanner, Trivy, and npm audit** in one command, normalizes findings into one report, fails the pipeline on CRITICAL or HIGH. No account. No telemetry. Local files only.
+> **SecGate** is a tiny security gate for CI/CD. Runs **Semgrep, Gitleaks, osv-scanner, Trivy, and npm audit** in one command, normalizes findings into one report, fails the pipeline on CRITICAL or HIGH. No account, no telemetry — SecGate itself sends nothing. Note: three of the wrapped scanners (`npm audit`, `osv-scanner`, `Trivy`) query vulnerability data over the network — see [Network access](#-network-access). Reports are written as local files.
 
 > **Honest positioning:** SecGate is a **triage accelerator**, not a defect oracle. The five scanners it wraps each have real false-positive rates (industry estimate: ~70% of raw SCA/SAST findings are noise). SecGate's job is to surface what's actionable and demote what's not — see [What we demote (and why)](#-what-we-demote-and-why) below.
 
@@ -75,13 +75,29 @@ SecGate does not ship its own analysis engine. Every finding originates from one
 
 | Scanner       | Category                  | Notes                                                                 |
 |---------------|---------------------------|-----------------------------------------------------------------------|
-| **Semgrep**   | SAST (static code)        | OSS ruleset. 10+ languages. Extend via `customSemgrepRules`.          |
-| **Gitleaks**  | Secrets & credentials     | Working tree + git history (when `.git/` present). Secrets redacted.  |
-| **npm audit** | Node dependencies (SCA)   | Runs when `package.json` present. GitHub advisory DB.                 |
-| **osv-scanner** | Polyglot SCA            | npm, PyPI, Go, Cargo, Maven, RubyGems, Packagist, NuGet, Pub.         |
-| **Trivy**     | IaC + License + Image     | Terraform, Kubernetes, Dockerfile, CloudFormation. Base-image CVEs.   |
+| **Semgrep**   | SAST (static code)        | OSS ruleset. 10+ languages. Extend via `customSemgrepRules`. Local.   |
+| **Gitleaks**  | Secrets & credentials     | Working tree + git history (when `.git/` present). Secrets redacted. Local. |
+| **npm audit** | Node dependencies (SCA)   | Runs when `package.json` present. **Queries the npm registry advisory API (network).** |
+| **osv-scanner** | Polyglot SCA            | npm, PyPI, Go, Cargo, Maven, RubyGems, Packagist, NuGet, Pub. **Queries the OSV.dev API (network).** |
+| **Trivy**     | IaC + License + Image     | Terraform, Kubernetes, Dockerfile, CloudFormation. Base-image CVEs. **Downloads its vuln DB; pulls image layers for image scans (network).** |
 
 Missing scanner binaries are **skipped gracefully** and noted in the report. No scanner is required; SecGate uses whatever is on `$PATH`.
+
+---
+
+## ░▒▓█ Network access
+
+SecGate itself makes **no network calls** — no telemetry, no account, no phone-home, and the report is written to local files. But three of the five wrapped scanners need the internet to do their job:
+
+| Scanner | Network use |
+|---------|-------------|
+| Semgrep | None — runs its ruleset against your files. |
+| Gitleaks | None — scans your working tree and git history locally. |
+| npm audit | Queries the npm registry's advisory API for your dependency tree. |
+| osv-scanner | Queries the OSV.dev API for advisories matching your dependency manifests. |
+| Trivy | Downloads/updates its vulnerability database; pulls image layers when scanning container images. |
+
+So "no telemetry" is exact; "fully air-gapped" is not — run SecGate offline and `npm audit`, `osv-scanner`, and `Trivy` will degrade or skip (which SecGate reports). A first-class offline mode (skip the network scanners, or point them at a local DB mirror) is tracked in the issue backlog.
 
 ---
 

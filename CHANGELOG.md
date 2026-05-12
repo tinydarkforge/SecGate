@@ -7,6 +7,11 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) + [Semantic Ver
 ## [Unreleased]
 
 ### Added
+- **Universal scanner timeout.** Every scanner invocation now has a default
+  180s ceiling (`DEFAULT_TOOL_TIMEOUT_MS` in `lib/utils.mjs`) — a hung or
+  wedged scanner binary can no longer stall SecGate or the CI job. Individual
+  callers may still override `timeout` (Trivy image scans keep their tighter
+  120s budget). Covered by `test/timeout.mjs`.
 - **Confidence profiles for the HTML report.** New `profile` config field
   (`"curated"` default, `"strict"` opt-in) and matching `--profile` CLI flag.
   Curated profile demotes known-noisy patterns to a collapsed Informational
@@ -49,6 +54,11 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) + [Semantic Ver
   count under curated profile.
 
 ### Documentation
+- README: new **"Network access"** section + per-scanner network markers in
+  the scanner table. SecGate itself sends nothing, but `npm audit`,
+  `osv-scanner`, and `Trivy` query vulnerability data over the network — the
+  intro no longer claims "Local files only" without that caveat. ("No
+  telemetry" was accurate; "fully air-gapped" was not.)
 - README: new "What we demote (and why)" section + `profile` row in
   config reference table + JSON example + `--profile` CLI usage.
 - Landing page: new "What we don't pretend" section listing curated
