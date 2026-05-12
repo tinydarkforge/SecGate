@@ -6,6 +6,12 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) + [Semantic Ver
 
 ## [Unreleased]
 
+## [0.2.7] - 2026-05-12
+
+(The `v0.2.6` tag was cut but never published to npm; everything below — the
+confidence-profile work and the timeout/network-disclosure changes — ships in
+`v0.2.7`. npm latest before this release: `0.2.4`.)
+
 ### Added
 - **Universal scanner timeout.** Every scanner invocation now has a default
   180s ceiling (`DEFAULT_TOOL_TIMEOUT_MS` in `lib/utils.mjs`) — a hung or

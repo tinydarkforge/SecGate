@@ -6,7 +6,7 @@
 
 How to adjust severity thresholds, baseline noisy findings, suppress rules, toggle scanners, and tune CI vs local defaults.
 
-> Flags marked **(planned)** are not yet shipped; the rest of this document reflects `v0.2.6` behavior. The config epic tracking remaining work: [**#32**](https://github.com/tinydarkforge/SecGate/issues/32).
+> Flags marked **(planned)** are not yet shipped; the rest of this document reflects `v0.2.7` behavior. The config epic tracking remaining work: [**#32**](https://github.com/tinydarkforge/SecGate/issues/32).
 
 ---
 

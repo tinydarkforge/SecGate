@@ -26,7 +26,7 @@
 
 > **Honest positioning:** SecGate is a **triage accelerator**, not a defect oracle. The five scanners it wraps each have real false-positive rates (industry estimate: ~70% of raw SCA/SAST findings are noise). SecGate's job is to surface what's actionable and demote what's not — see [What we demote (and why)](#-what-we-demote-and-why) below.
 
-> **Status:** Early release (`v0.2.6`). Published with [npm provenance](https://docs.npmjs.com/generating-provenance-statements). Report vulnerabilities via [SECURITY.md](SECURITY.md).
+> **Status:** Early release (`v0.2.7`). Published with [npm provenance](https://docs.npmjs.com/generating-provenance-statements). Report vulnerabilities via [SECURITY.md](SECURITY.md).
 
 ---
 
