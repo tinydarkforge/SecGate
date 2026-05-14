@@ -64,6 +64,9 @@
     "lint": "eslint .",
     "scan": "node secgate.js ."
   },
+  "dependencies": {
+    "@stelnyx/report-theme": "file:../report-theme"
+  },
   "devDependencies": {
     "@eslint/js": "^9.27.0",
     "c8": "^10.1.3",

@@ -2,3 +2,7 @@ node_modules
 sec*.json
 *.html
 !landing/*.html
+
+# Local agent state
+/.claude/
+/.a5c/logs/
