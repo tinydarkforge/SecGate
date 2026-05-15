@@ -6,3 +6,4 @@ sec*.json
 # Local agent state
 /.claude/
 /.a5c/logs/
+/.a5c/cache/
