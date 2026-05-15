@@ -19,7 +19,7 @@
   <img alt="node" src="https://img.shields.io/badge/node-%E2%89%A518-00cc66.svg?style=flat-square&labelColor=0a0a0a">
   <img alt="provenance" src="https://img.shields.io/badge/npm%20provenance-signed-00cc66.svg?style=flat-square&labelColor=0a0a0a">
   <a href="SECURITY.md"><img alt="security" src="https://img.shields.io/badge/security-policy-00cc66.svg?style=flat-square&labelColor=0a0a0a"></a>
-  <a href="https://github.com/tinydarkforge/SecGate/actions/workflows/ci.yml"><img alt="self-scan" src="https://github.com/tinydarkforge/SecGate/actions/workflows/ci.yml/badge.svg?branch=main"></a>
+  <a href="https://github.com/Stelnyx/SecGate/actions/workflows/ci.yml"><img alt="self-scan" src="https://github.com/Stelnyx/SecGate/actions/workflows/ci.yml/badge.svg?branch=main"></a>
 </p>
 
 > **SecGate** is a tiny security gate for CI/CD. Runs **Semgrep, Gitleaks, osv-scanner, Trivy, and npm audit** in one command, normalizes findings into one report, fails the pipeline on CRITICAL or HIGH. No account, no telemetry — SecGate itself sends nothing. Note: three of the wrapped scanners (`npm audit`, `osv-scanner`, `Trivy`) query vulnerability data over the network — see [Network access](#-network-access). Reports are written as local files.
@@ -158,6 +158,20 @@ SecGate will become the open-source input layer for a broader security workflow.
 
 ---
 
+## ░▒▓█ Tiers (planned)
+
+> **Status:** today's CLI is MIT, single tier — `npx @tinydarkforge/secgate .` runs the full scan, no flags, no gates. The table below is the planned tier model that aligns SecGate with [LuxScope](https://github.com/Stelnyx/LuxScope) and [LuxFaber](https://github.com/Stelnyx/LuxFaber) — same engine at every tier, paid tiers add presentation, persistence, and governance. **`recon` ships today.** `standard` / `enterprise` arrive when the hosted-link service lands.
+
+| Tier | Scanners | Findings | HTML report | Hosted shareable link | Branded cover | Trend storage |
+|---|---|---|---|---|---|---|
+| **recon** | all 5 (Semgrep · Gitleaks · npm audit · osv-scanner · Trivy) | all (curated + strict profiles) | yes (self-contained) | no | no | no |
+| **standard** | all 5 | all | yes | yes (persistent URL) | no | yes (per-repo history) |
+| **enterprise** | all 5 + custom rule packs | all | yes | yes | yes (logo, client, accent color) | yes (org-wide rollup) |
+
+`recon` is full local analysis — same scanners, same findings, same SARIF output as paid tiers. Paid tier value is **persistence, sharing, and governance**, not analysis depth. The CLI does not gate any scanner output by tier — every CVE, every secret, every IaC misconfig surfaces in `recon`. The MIT core boundary is defined in [`OPEN-CORE.md`](OPEN-CORE.md).
+
+---
+
 ## ░▒▓█ Prerequisites
 
 Node.js `>=18`. External scanners are optional — install only the ones you want to run.
@@ -192,7 +206,7 @@ npx @tinydarkforge/secgate .
 ### From source
 
 ```bash
-git clone https://github.com/tinydarkforge/SecGate.git
+git clone https://github.com/Stelnyx/SecGate.git
 cd SecGate
 npm install
 chmod +x secgate.js
@@ -372,7 +386,7 @@ A composite action is published at `.github/actions/secgate/` in this repo.
 ```yaml
 - name: SecGate Security Gate
   id: secgate
-  uses: tinydarkforge/SecGate/.github/actions/secgate@main
+  uses: Stelnyx/SecGate/.github/actions/secgate@main
   with:
     target: "."
     apply: "false"
@@ -415,7 +429,7 @@ A composite action is published at `.github/actions/secgate/` in this repo.
 **Pin to a full commit SHA** for production workflows:
 
 ```yaml
-uses: tinydarkforge/SecGate/.github/actions/secgate@<full-sha>
+uses: Stelnyx/SecGate/.github/actions/secgate@<full-sha>
 ```
 
 See [`.github/workflows/example-secgate.yml`](.github/workflows/example-secgate.yml) for a complete reference workflow.
@@ -607,7 +621,7 @@ See [`CONTRIBUTING.md`](CONTRIBUTING.md). Report vulnerabilities privately per [
 
 ## ░▒▓█ License
 
-[MIT](LICENSE) — © TinyDarkForge
+[MIT](LICENSE) — © Stelnyx
 
 ```text
             ╔═══╗
