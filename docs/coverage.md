@@ -34,7 +34,7 @@ flowchart LR
 | **Secrets** (credentials in code/history) | Gitleaks | Scans working tree by default. Extends to git history when `.git/` present. Redacts match bodies in output. |
 | **IaC misconfiguration** | Trivy (`fs` mode) | Terraform, CloudFormation, Kubernetes manifests, Dockerfile, Helm, Ansible. Uses Trivy's default policy bundle. |
 | **License** | Trivy (`fs` mode) | Detects package licenses and flags restricted (copyleft) licenses per Trivy defaults. |
-| **Container image** | **Not covered today** — `trivy fs` reads Dockerfiles but does not scan built image layers. See [`#36`](https://github.com/tinydarkforge/SecGate/issues/36) for `trivy image` integration. |
+| **Container image** | **Not covered today** — `trivy fs` reads Dockerfiles but does not scan built image layers. See [`#36`](https://github.com/Stelnyx/SecGate/issues/36) for `trivy image` integration. |
 | **DAST** (runtime testing) | Not covered — out of scope for a CI gate. |
 | **Cloud posture (CSPM)** | Not covered — use cloud-native tools. |
 

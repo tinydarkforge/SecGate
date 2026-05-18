@@ -14,7 +14,7 @@
 ```
 
 <p align="center">
-  <a href="https://www.npmjs.com/package/@tinydarkforge/secgate"><img alt="npm" src="https://img.shields.io/npm/v/@tinydarkforge/secgate.svg?style=flat-square&labelColor=0a0a0a&color=00cc66"></a>
+  <a href="https://www.npmjs.com/package/@stelnyx/secgate"><img alt="npm" src="https://img.shields.io/npm/v/@stelnyx/secgate.svg?style=flat-square&labelColor=0a0a0a&color=00cc66"></a>
   <a href="LICENSE"><img alt="license" src="https://img.shields.io/badge/license-MIT-00cc66.svg?style=flat-square&labelColor=0a0a0a"></a>
   <img alt="node" src="https://img.shields.io/badge/node-%E2%89%A518-00cc66.svg?style=flat-square&labelColor=0a0a0a">
   <img alt="provenance" src="https://img.shields.io/badge/npm%20provenance-signed-00cc66.svg?style=flat-square&labelColor=0a0a0a">
@@ -24,7 +24,7 @@
 
 > **SecGate** is a tiny security gate for CI/CD. Runs **Semgrep, Gitleaks, osv-scanner, Trivy, and npm audit** in one command, normalizes findings into one report, fails the pipeline on CRITICAL or HIGH. No account, no telemetry — SecGate itself sends nothing. Note: three of the wrapped scanners (`npm audit`, `osv-scanner`, `Trivy`) query vulnerability data over the network — see [Network access](#-network-access). Reports are written as local files.
 
-> **Honest positioning:** SecGate is a **triage accelerator**, not a defect oracle. The five scanners it wraps each have real false-positive rates (industry estimate: ~70% of raw SCA/SAST findings are noise). SecGate's job is to surface what's actionable and demote what's not — see [What we demote (and why)](#-what-we-demote-and-why) below.
+> **Honest positioning:** SecGate is a **triage accelerator**, not a defect oracle. Dogfood scan of a 2,628-file production codebase: **1,858 → 46 actionable findings (98% noise demoted)**. The five scanners it wraps each have real false-positive rates (industry estimate: ~70% of raw SCA/SAST output is noise). SecGate's job is to surface what's actionable and demote what's not — see [What we demote (and why)](#-what-we-demote-and-why).
 
 > **Status:** Early release (`v0.2.7`). Published with [npm provenance](https://docs.npmjs.com/generating-provenance-statements). Report vulnerabilities via [SECURITY.md](SECURITY.md).
 
@@ -51,7 +51,7 @@ Penalty per finding: CRITICAL −25 · HIGH −10 · MEDIUM −3 · LOW −1 · 
 ## ░▒▓█ TL;DR
 
 ```bash
-npx @tinydarkforge/secgate .
+npx @stelnyx/secgate .
 ```
 
 Runs all five scanners against the current directory, writes a JSON report, a self-contained HTML report, and (optionally) SARIF. Exit `0` on clean, `1` on CRITICAL/HIGH findings. That's the whole product.
@@ -148,27 +148,7 @@ SecGate is **not** a SOC platform, a compliance tool, or a vulnerability managem
 | **Snyk**             | You need a managed vuln DB, triage UX, Jira sync — and budget.|
 | **Aikido**           | You want SaaS dashboards and are OK with a hosted account.   |
 
-**SecGate's niche:** zero-config orchestration, no account, no telemetry, local output only, MIT. If you need SaaS-grade triage or compliance workflow, buy Snyk or Aikido. Full matrix: [`docs/comparison.md`](docs/comparison.md).
-
----
-
-## ░▒▓█ Product vision
-
-SecGate will become the open-source input layer for a broader security workflow. The **core CLI** — scan orchestration, SARIF output, baselines, suppressions, HTML report — stays **MIT-licensed and free, forever**. Future paid extensions may add hosted dashboards, org-wide policy management, compliance evidence packs, and multi-repo aggregation for teams that need more than a local gate. Those do not exist today. The OSS boundary is defined in [`OPEN-CORE.md`](OPEN-CORE.md).
-
----
-
-## ░▒▓█ Tiers (planned)
-
-> **Status:** today's CLI is MIT, single tier — `npx @tinydarkforge/secgate .` runs the full scan, no flags, no gates. The table below is the planned tier model that aligns SecGate with [LuxScope](https://github.com/Stelnyx/LuxScope) and [LuxFaber](https://github.com/Stelnyx/LuxFaber) — same engine at every tier, paid tiers add presentation, persistence, and governance. **`recon` ships today.** `standard` / `enterprise` arrive when the hosted-link service lands.
-
-| Tier | Scanners | Findings | HTML report | Hosted shareable link | Branded cover | Trend storage |
-|---|---|---|---|---|---|---|
-| **recon** | all 5 (Semgrep · Gitleaks · npm audit · osv-scanner · Trivy) | all (curated + strict profiles) | yes (self-contained) | no | no | no |
-| **standard** | all 5 | all | yes | yes (persistent URL) | no | yes (per-repo history) |
-| **enterprise** | all 5 + custom rule packs | all | yes | yes | yes (logo, client, accent color) | yes (org-wide rollup) |
-
-`recon` is full local analysis — same scanners, same findings, same SARIF output as paid tiers. Paid tier value is **persistence, sharing, and governance**, not analysis depth. The CLI does not gate any scanner output by tier — every CVE, every secret, every IaC misconfig surfaces in `recon`. The MIT core boundary is defined in [`OPEN-CORE.md`](OPEN-CORE.md).
+**SecGate's niche:** zero-config orchestration, local output only, MIT. If you need SaaS-grade triage or compliance workflow, buy Snyk or Aikido. Full matrix: [`docs/comparison.md`](docs/comparison.md).
 
 ---
 
@@ -194,13 +174,13 @@ pip install semgrep
 ### From npm (recommended)
 
 ```bash
-npm install -g @tinydarkforge/secgate
+npm install -g @stelnyx/secgate
 ```
 
 ### One-shot via npx (no install)
 
 ```bash
-npx @tinydarkforge/secgate .
+npx @stelnyx/secgate .
 ```
 
 ### From source
@@ -360,7 +340,7 @@ Suppressed findings are excluded from counters. The report's `suppressions` sect
 ```yaml
 # .github/workflows/secgate.yml
 - name: Run SecGate
-  run: npx @tinydarkforge/secgate .
+  run: npx @stelnyx/secgate .
   # exits 1 on CRITICAL or HIGH findings — blocks the pipeline
 ```
 
@@ -368,7 +348,7 @@ Suppressed findings are excluded from counters. The report's `suppressions` sect
 
 ```yaml
 - name: Run SecGate
-  run: npx @tinydarkforge/secgate . || true
+  run: npx @stelnyx/secgate . || true
 
 - name: Upload report
   uses: actions/upload-artifact@v4
@@ -463,7 +443,7 @@ secgate . --format sarif             # also writes JSON + HTML
 ```yaml
 - name: Run SecGate
   id: secgate
-  run: npx @tinydarkforge/secgate . --format sarif
+  run: npx @stelnyx/secgate . --format sarif
 
 - name: Upload SARIF
   uses: github/codeql-action/upload-sarif@v3
@@ -487,7 +467,7 @@ Each run writes:
 
 ```json
 {
-  "version": "0.2.4",
+  "version": "0.2.7",
   "timestamp": "ISO 8601",
   "target": "/absolute/path",
   "mode": "dry-run | apply",
@@ -595,6 +575,8 @@ Findings are scored with static weights applied at ingress:
 
 The `riskScore` in the report is the sum of these weights across all findings. This is a **heuristic count**, not CVSS, not EPSS, not exploit-probability modeling. Use it to compare runs of the same repo over time — not as an absolute posture score.
 
+> **Note — two scores, two purposes.** `riskScore` (here) is an unbounded raw weight kept for backward compatibility with early CI dashboards. The user-facing **[Security Score](#-security-score)** (0–100) at the top of this README is the deterministic 0–100 posture metric introduced in `v0.2.x` and is the one to surface in new dashboards.
+
 ---
 
 ## ░▒▓█ Documentation
@@ -610,6 +592,26 @@ The `riskScore` in the report is the sum of these weights across all findings. T
 | [`docs/adr/`](docs/adr/)                               | Architecture decision records                                                  |
 | [`SECURITY.md`](SECURITY.md)                           | Vulnerability reporting, SLA, coordinated disclosure, supply-chain trust       |
 | [`CONTRIBUTING.md`](CONTRIBUTING.md)                   | Dev setup, branch + commit conventions, PR checklist                           |
+
+---
+
+## ░▒▓█ Product vision
+
+SecGate is the open-source input layer for a broader security workflow. The **core CLI** — scan orchestration, SARIF output, baselines, suppressions, HTML report — stays **MIT-licensed and free, forever**. Future paid extensions may add hosted dashboards, org-wide policy management, compliance evidence packs, and multi-repo aggregation for teams that need more than a local gate. Those do not exist today. The OSS boundary is defined in [`OPEN-CORE.md`](OPEN-CORE.md).
+
+---
+
+## ░▒▓█ Tiers (planned)
+
+> **Status:** today's CLI is MIT, single tier — `npx @stelnyx/secgate .` runs the full scan, no flags, no gates. The table below is the planned tier model that aligns SecGate with [LuxScope](https://github.com/Stelnyx/LuxScope) and [LuxFaber](https://github.com/Stelnyx/LuxFaber) — same engine at every tier, paid tiers add presentation, persistence, and governance. **`recon` ships today.** `standard` / `enterprise` arrive when the hosted-link service lands.
+
+| Tier | Scanners | Findings | HTML report | Hosted shareable link | Branded cover | Trend storage |
+|---|---|---|---|---|---|---|
+| **recon** | all 5 (Semgrep · Gitleaks · npm audit · osv-scanner · Trivy) | all (curated + strict profiles) | yes (self-contained) | no | no | no |
+| **standard** | all 5 | all | yes | yes (persistent URL) | no | yes (per-repo history) |
+| **enterprise** | all 5 + custom rule packs | all | yes | yes | yes (logo, client, accent color) | yes (org-wide rollup) |
+
+`recon` is full local analysis — same scanners, same findings, same SARIF output as paid tiers. Paid tier value is **persistence, sharing, and governance**, not analysis depth. The CLI does not gate any scanner output by tier — every CVE, every secret, every IaC misconfig surfaces in `recon`. The MIT core boundary is defined in [`OPEN-CORE.md`](OPEN-CORE.md).
 
 ---
 

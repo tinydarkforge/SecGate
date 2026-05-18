@@ -21,7 +21,7 @@ These capabilities are shipped today and will not move behind a paywall:
 - **Baseline / ratcheting** — `--update-baseline`, `--baseline`, suppress known findings
 - **Inline suppressions** — `secgate:ignore` comments, audit-logged
 - **Config file** — `.secgate.config.json`, severity overrides, scanner toggles, profile selection
-- **CLI** — `secgate`, `npx @tinydarkforge/secgate`, GitHub composite Action
+- **CLI** — `secgate`, `npx @stelnyx/secgate`, GitHub composite Action
 - **Local and air-gapped use** — no required network calls, no telemetry, no account
 
 If you build on any of the above today, it will still be there and free in 18 months.

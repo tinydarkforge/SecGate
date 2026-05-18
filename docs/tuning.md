@@ -6,7 +6,7 @@
 
 How to adjust severity thresholds, baseline noisy findings, suppress rules, toggle scanners, and tune CI vs local defaults.
 
-> Flags marked **(planned)** are not yet shipped; the rest of this document reflects `v0.2.7` behavior. The config epic tracking remaining work: [**#32**](https://github.com/tinydarkforge/SecGate/issues/32).
+> Flags marked **(planned)** are not yet shipped; the rest of this document reflects `v0.2.7` behavior. The config epic tracking remaining work: [**#32**](https://github.com/Stelnyx/SecGate/issues/32).
 
 ---
 
@@ -168,7 +168,7 @@ Any scanner set to `false` is skipped and reported as `status: "skipped"`. To ru
 
 SecGate skips any scanner whose binary is not on `$PATH` (reported as `skipped` with reason `binary not found`). Useful when you control the CI image — install only the scanners you want to run.
 
-CLI flags `--disable <list>` and `--only <scanner>` are planned — see [#32](https://github.com/tinydarkforge/SecGate/issues/32).
+CLI flags `--disable <list>` and `--only <scanner>` are planned — see [#32](https://github.com/Stelnyx/SecGate/issues/32).
 
 ---
 
@@ -205,7 +205,7 @@ jobs:
            curl -sSfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh)
 
       - name: Run SecGate
-        run: npx @tinydarkforge/secgate .
+        run: npx @stelnyx/secgate .
 
       - name: Upload report
         if: always()

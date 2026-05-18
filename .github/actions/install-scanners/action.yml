@@ -1,6 +1,6 @@
 name: Install security scanners
 description: Install Semgrep, Gitleaks, osv-scanner, and Trivy at pinned versions.
-author: TinyDarkForge
+author: Stelnyx
 
 runs:
   using: composite

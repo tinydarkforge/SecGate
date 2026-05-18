@@ -1,12 +1,12 @@
 # Design parity with sister products
 
 **Sisters:**
-- [`luxfaber`](https://github.com/tinydarkforge/LuxFaber) (~/code/TinyDarkForge/luxfaber)
-- [`lucen`](https://github.com/tinydarkforge/lucen) (~/code/TinyDarkForge/lucen)
+- [`luxfaber`](https://github.com/Stelnyx/LuxFaber) (~/code/Stelnyx/luxfaber)
+- [`lucen`](https://github.com/Stelnyx/lucen) (~/code/Stelnyx/lucen)
 
 SecGate, Luxfaber, and Lucen share visual identity. **Any change to the shared shell, theme, brand block, or theme toggle MUST be mirrored in all three repos.** Drift kills the "same product family" feel and forces buyers to re-learn the chrome.
 
-The full token + anatomy spec is maintained in **[luxfaber/DESIGN_PARITY.md](https://github.com/tinydarkforge/LuxFaber/blob/main/DESIGN_PARITY.md)** — that document is the authoritative reference for tokens, sidebar nav, brand block, theme button, export row, and score band thresholds. This file documents only SecGate-specific deviations and where to look.
+The full token + anatomy spec is maintained in **[luxfaber/DESIGN_PARITY.md](https://github.com/Stelnyx/LuxFaber/blob/main/DESIGN_PARITY.md)** — that document is the authoritative reference for tokens, sidebar nav, brand block, theme button, export row, and score band thresholds. This file documents only SecGate-specific deviations and where to look.
 
 ## Shared design tokens (summary)
 

@@ -67,7 +67,7 @@ jobs:
           EFFECTIVE_TAG: ${{ inputs.tag || github.ref_name }}
         run: |
           SBOM_NAME="secgate-${EFFECTIVE_TAG#v}.sbom.cdx.json"
-          npm sbom --sbom-format cyclonedx --sbom-set-name "@tinydarkforge/secgate" > "$SBOM_NAME"
+          npm sbom --sbom-format cyclonedx --sbom-set-name "@stelnyx/secgate" > "$SBOM_NAME"
           if [ ! -s "$SBOM_NAME" ]; then
             echo "SBOM generation failed or produced empty file"
             exit 1
@@ -80,7 +80,7 @@ jobs:
           EFFECTIVE_TAG: ${{ inputs.tag || github.ref_name }}
         run: |
           npm pack
-          TARBALL=$(ls tinydarkforge-secgate-*.tgz | head -n1)
+          TARBALL=$(ls stelnyx-secgate-*.tgz | head -n1)
           RELEASE_NAME="secgate-${EFFECTIVE_TAG#v}.tgz"
           mv "$TARBALL" "$RELEASE_NAME"
           echo "tarball_name=$RELEASE_NAME" >> "$GITHUB_OUTPUT"
@@ -259,11 +259,11 @@ jobs:
       - name: Verify the published package installs and runs
         run: |
           PKG_VERSION="$(node -p "require('./package.json').version")"
-          echo "Waiting for @tinydarkforge/secgate@${PKG_VERSION} to be visible on the registry…"
+          echo "Waiting for @stelnyx/secgate@${PKG_VERSION} to be visible on the registry…"
           for i in 1 2 3 4 5 6; do
-            if npm view "@tinydarkforge/secgate@${PKG_VERSION}" version >/dev/null 2>&1; then break; fi
+            if npm view "@stelnyx/secgate@${PKG_VERSION}" version >/dev/null 2>&1; then break; fi
             sleep 15
           done
-          npm install -g "@tinydarkforge/secgate@${PKG_VERSION}"
+          npm install -g "@stelnyx/secgate@${PKG_VERSION}"
           secgate --version
           secgate --help

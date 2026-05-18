@@ -1,6 +1,6 @@
 name: SecGate Security Gate
 description: Run SecGate security scanners (Semgrep, Gitleaks, osv-scanner, Trivy, npm audit) and optionally upload SARIF to GitHub Code Scanning.
-author: TinyDarkForge
+author: Stelnyx
 
 branding:
   icon: shield
@@ -58,7 +58,7 @@ runs:
         TARGET_ABS="$(realpath "$SECGATE_TARGET")"
         REPO_NAME="$(basename "$TARGET_ABS")"
 
-        npx --yes @tinydarkforge/secgate "${ARGS[@]}" || SECGATE_EXIT=$?
+        npx --yes @stelnyx/secgate "${ARGS[@]}" || SECGATE_EXIT=$?
 
         echo "report-path=secgate-v7-report.json" >> "$GITHUB_OUTPUT"
 

@@ -15,7 +15,7 @@ Thanks for your interest. SecGate is a security engine — contributions that im
 ## Development setup
 
 ```bash
-git clone https://github.com/tinydarkforge/SecGate.git
+git clone https://github.com/Stelnyx/SecGate.git
 cd SecGate
 npm install
 node secgate.js --help
@@ -41,4 +41,4 @@ Types: `feat`, `fix`, `docs`, `chore`, `refactor`, `test`, `security`, `perf`.
 
 ## Questions
 
-Open a [discussion](https://github.com/tinydarkforge/SecGate/discussions) or a regular issue. Security matters go through private advisory only.
+Open a [discussion](https://github.com/Stelnyx/SecGate/discussions) or a regular issue. Security matters go through private advisory only.

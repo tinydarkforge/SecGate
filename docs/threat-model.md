@@ -48,7 +48,7 @@ flowchart LR
 
 | Zone | Trust level | Controlled by |
 |------|-------------|---------------|
-| SecGate CLI process | Trusted (this repo) | TinyDarkForge |
+| SecGate CLI process | Trusted (this repo) | Stelnyx |
 | Upstream scanner binaries | Semi-trusted (signed releases, pinned versions) | Semgrep, GitGuardian, Google, Aqua, npm |
 | Scanned repository contents | **Untrusted** (can be adversarial) | End user / customer / PR author |
 | CI environment | Trusted (customer-owned, but holds secrets) | End user |

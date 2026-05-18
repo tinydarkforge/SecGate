@@ -1,5 +1,5 @@
 {
-  "name": "@tinydarkforge/secgate",
+  "name": "@stelnyx/secgate",
   "version": "0.2.7",
   "description": "Tiny security gate for CI/CD — orchestrates Semgrep, Gitleaks, osv-scanner, Trivy, and npm audit with a premium HTML report.",
   "type": "module",
@@ -15,7 +15,8 @@
     "lib/",
     "README.md",
     "LICENSE",
-    "SECURITY.md"
+    "SECURITY.md",
+    ".secgate.config.example.json"
   ],
   "keywords": [
     "security",
@@ -33,16 +34,16 @@
     "npm-audit",
     "devsecops"
   ],
-  "author": "TinyDarkForge",
+  "author": "Stelnyx",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/tinydarkforge/SecGate.git"
+    "url": "git+https://github.com/Stelnyx/SecGate.git"
   },
   "bugs": {
-    "url": "https://github.com/tinydarkforge/SecGate/issues"
+    "url": "https://github.com/Stelnyx/SecGate/issues"
   },
-  "homepage": "https://github.com/tinydarkforge/SecGate#readme",
+  "homepage": "https://github.com/Stelnyx/SecGate#readme",
   "publishConfig": {
     "access": "public",
     "provenance": true
@@ -65,7 +66,7 @@
     "scan": "node secgate.js ."
   },
   "dependencies": {
-    "@stelnyx/report-theme": "file:../report-theme"
+    "@stelnyx/report-theme": "^0.1.0"
   },
   "devDependencies": {
     "@eslint/js": "^9.27.0",

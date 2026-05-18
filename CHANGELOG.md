@@ -22,7 +22,7 @@ confidence-profile work and the timeout/network-disclosure changes — ships in
   and `strict` profiles partition the same finding set (nothing dropped, only
   the actionable/informational split changes); `strict` never demotes.
 - **Post-publish healthcheck** in the release workflow — installs the freshly
-  published `@tinydarkforge/secgate@<version>` and runs `--version` / `--help`
+  published `@stelnyx/secgate@<version>` and runs `--version` / `--help`
   so a broken `bin` entry or tarball is caught at release time.
 - **Confidence profiles for the HTML report.** New `profile` config field
   (`"curated"` default, `"strict"` opt-in) and matching `--profile` CLI flag.
@@ -50,7 +50,7 @@ confidence-profile work and the timeout/network-disclosure changes — ships in
   arithmetic, profile bypass).
 - **Sidebar shell parity with luxfaber + lucen.** SecGate report now
   renders in the unified Midnight Blossom / Dawn Blossom shell shared
-  across the three TinyDarkForge products. 240px sticky sidebar with
+  across the three Stelnyx products. 240px sticky sidebar with
   brand block + score + band pill + PASS/FAIL chip + scroll-spy nav.
   Theme toggle persisted in `localStorage`. 🛡 inline SVG favicon.
 
@@ -180,7 +180,7 @@ No functional changes. Patch release to validate CI/CD pipeline configuration af
 
 ## [0.1.0] — 2026-04-23
 
-Initial public release to npm as `@tinydarkforge/secgate`.
+Initial public release to npm as `@stelnyx/secgate`.
 
 ### Added
 - Five scanner integrations: Semgrep (SAST), Gitleaks (secrets), npm audit (dependency CVEs), osv-scanner (OSV database), Trivy (CVEs + misconfigs).
@@ -190,10 +190,10 @@ Initial public release to npm as `@tinydarkforge/secgate`.
 - npm publish with provenance (`--provenance`).
 - Risk scoring and exit code semantics: exit `0` = clean or low/medium only; exit `1` = CRITICAL or HIGH findings present.
 
-[Unreleased]: https://github.com/tinydarkforge/SecGate/compare/v0.2.4...HEAD
-[0.2.4]: https://github.com/tinydarkforge/SecGate/compare/v0.2.3...v0.2.4
-[0.2.3]: https://github.com/tinydarkforge/SecGate/compare/v0.2.2...v0.2.3
-[0.2.2]: https://github.com/tinydarkforge/SecGate/compare/v0.2.1...v0.2.2
-[0.2.1]: https://github.com/tinydarkforge/SecGate/compare/v0.2.0...v0.2.1
-[0.2.0]: https://github.com/tinydarkforge/SecGate/compare/v0.1.0...v0.2.0
-[0.1.0]: https://github.com/tinydarkforge/SecGate/releases/tag/v0.1.0
+[Unreleased]: https://github.com/Stelnyx/SecGate/compare/v0.2.4...HEAD
+[0.2.4]: https://github.com/Stelnyx/SecGate/compare/v0.2.3...v0.2.4
+[0.2.3]: https://github.com/Stelnyx/SecGate/compare/v0.2.2...v0.2.3
+[0.2.2]: https://github.com/Stelnyx/SecGate/compare/v0.2.1...v0.2.2
+[0.2.1]: https://github.com/Stelnyx/SecGate/compare/v0.2.0...v0.2.1
+[0.2.0]: https://github.com/Stelnyx/SecGate/compare/v0.1.0...v0.2.0
+[0.1.0]: https://github.com/Stelnyx/SecGate/releases/tag/v0.1.0

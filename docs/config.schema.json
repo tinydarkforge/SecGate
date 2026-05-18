@@ -1,6 +1,6 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "$id": "https://github.com/tinydarkforge/SecGate/raw/main/docs/config.schema.json",
+  "$id": "https://github.com/Stelnyx/SecGate/raw/main/docs/config.schema.json",
   "title": "SecGate config",
   "description": "Configuration for .secgate.config.json — place in the scan target directory.",
   "type": "object",

@@ -12,8 +12,8 @@ If you discover a security vulnerability in SecGate, please report it privately.
 
 ### Preferred channels
 
-1. **GitHub Security Advisory** — open a [private security advisory](https://github.com/tinydarkforge/SecGate/security/advisories/new). This is the fastest route and is tracked via the GitHub Security Advisories (GHSA) workflow. **This is the only fully private channel available right now.**
-2. **Email** — `security@tinydarkforge.dev`. Plain email is accepted; encrypted email is not yet available (see below).
+1. **GitHub Security Advisory** — open a [private security advisory](https://github.com/Stelnyx/SecGate/security/advisories/new). This is the fastest route and is tracked via the GitHub Security Advisories (GHSA) workflow. **This is the only fully private channel available right now.**
+2. **Email** — `security@stelnyx.dev`. Plain email is accepted; encrypted email is not yet available (see below).
 
 ### PGP Key
 
@@ -114,7 +114,7 @@ Every tagged release (`vX.Y.Z`) ships with verifiable provenance:
 | Checksums | `SHA256SUMS` | SHA-256 manifest for tarball + SBOM |
 
 npm registry metadata also carries [npm provenance](https://docs.npmjs.com/generating-provenance-statements)
-(via `publishConfig.provenance: true`) for the `@tinydarkforge/secgate` package.
+(via `publishConfig.provenance: true`) for the `@stelnyx/secgate` package.
 
 ### Trust root (keyless cosign)
 
@@ -124,7 +124,7 @@ the exact workflow that produced it:
 
 - Expected OIDC issuer: `https://token.actions.githubusercontent.com`
 - Expected signer identity (regex):
-  `^https://github\.com/tinydarkforge/SecGate/\.github/workflows/release\.yml@refs/tags/.*`
+  `^https://github\.com/Stelnyx/SecGate/\.github/workflows/release\.yml@refs/tags/.*`
 
 The Sigstore transparency log (Rekor) entry is the public record. There is no
 "public key" to rotate; if the signer identity or issuer ever changes, that is
@@ -133,7 +133,7 @@ the signal, and release notes will call it out.
 ### One-line verification
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/tinydarkforge/SecGate/main/scripts/verify-release.sh \
+curl -fsSL https://raw.githubusercontent.com/Stelnyx/SecGate/main/scripts/verify-release.sh \
   | bash -s -- v0.1.0
 ```
 
@@ -154,7 +154,7 @@ Install [`cosign`](https://docs.sigstore.dev/system_config/installation) (>=
 
 ```bash
 VERSION=v0.1.0
-BASE="https://github.com/tinydarkforge/SecGate/releases/download/${VERSION}"
+BASE="https://github.com/Stelnyx/SecGate/releases/download/${VERSION}"
 TARBALL="secgate-${VERSION#v}.tgz"
 SBOM="secgate-${VERSION#v}.sbom.cdx.json"
 ATT="secgate-${VERSION}.intoto.jsonl"
@@ -173,14 +173,14 @@ cosign verify-blob \
   --certificate "${TARBALL}.pem" \
   --signature "${TARBALL}.sig" \
   --certificate-identity-regexp \
-    '^https://github\.com/tinydarkforge/SecGate/\.github/workflows/release\.yml@refs/tags/.*' \
+    '^https://github\.com/Stelnyx/SecGate/\.github/workflows/release\.yml@refs/tags/.*' \
   --certificate-oidc-issuer https://token.actions.githubusercontent.com \
   "$TARBALL"
 
 # 3. SLSA L3 provenance
 slsa-verifier verify-artifact \
   --provenance-path "$ATT" \
-  --source-uri github.com/tinydarkforge/SecGate \
+  --source-uri github.com/Stelnyx/SecGate \
   --source-tag "$VERSION" \
   "$TARBALL"
 ```
@@ -199,7 +199,7 @@ open a private security advisory immediately.
 
 ## Safe Harbor
 
-Good-faith security research following this policy will not be subject to legal action by TinyDarkForge. Please:
+Good-faith security research following this policy will not be subject to legal action by Stelnyx. Please:
 
 - Do not access, modify, or exfiltrate data beyond what is needed to demonstrate the vulnerability.
 - Do not publicly disclose before coordinated disclosure timeline ends.

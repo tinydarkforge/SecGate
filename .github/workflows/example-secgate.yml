@@ -4,10 +4,10 @@
 # This file is a reference implementation — enable Actions in repo settings to activate it.
 #
 # Usage in your own repository:
-#   uses: tinydarkforge/SecGate/.github/actions/secgate@main
+#   uses: Stelnyx/SecGate/.github/actions/secgate@main
 #
 # For a pinned SHA (recommended for production):
-#   uses: tinydarkforge/SecGate/.github/actions/secgate@<full-sha>
+#   uses: Stelnyx/SecGate/.github/actions/secgate@<full-sha>
 
 name: SecGate Security Gate (example)
 
@@ -64,7 +64,7 @@ jobs:
       # Run SecGate — emits JSON, HTML, and SARIF.
       - name: Run SecGate
         id: secgate
-        uses: tinydarkforge/SecGate/.github/actions/secgate@main
+        uses: Stelnyx/SecGate/.github/actions/secgate@main
         with:
           target: "."
           apply: "false"
