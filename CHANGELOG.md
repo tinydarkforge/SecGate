@@ -238,7 +238,10 @@ Initial public release to npm as `@stelnyx/secgate`.
 - npm publish with provenance (`--provenance`).
 - Risk scoring and exit code semantics: exit `0` = clean or low/medium only; exit `1` = CRITICAL or HIGH findings present.
 
-[Unreleased]: https://github.com/Stelnyx/SecGate/compare/v0.2.4...HEAD
+[Unreleased]: https://github.com/Stelnyx/SecGate/compare/v0.2.9...HEAD
+[0.2.9]: https://github.com/Stelnyx/SecGate/compare/v0.2.8...v0.2.9
+[0.2.8]: https://github.com/Stelnyx/SecGate/compare/v0.2.7...v0.2.8
+[0.2.7]: https://github.com/Stelnyx/SecGate/compare/v0.2.4...v0.2.7
 [0.2.4]: https://github.com/Stelnyx/SecGate/compare/v0.2.3...v0.2.4
 [0.2.3]: https://github.com/Stelnyx/SecGate/compare/v0.2.2...v0.2.3
 [0.2.2]: https://github.com/Stelnyx/SecGate/compare/v0.2.1...v0.2.2
