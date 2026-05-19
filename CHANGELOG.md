@@ -6,6 +6,15 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) + [Semantic Ver
 
 ## [Unreleased]
 
+## [0.2.9] - 2026-05-18
+
+### Fixed
+- **CI publish job missing `npm ci`**: the `npm publish (provenance)` job ran
+  `node secgate.js .` (self-scan) without first installing dependencies, so
+  `@stelnyx/report-theme` failed to resolve and the publish was blocked.
+  `0.2.8` shipped the same fix only for the build job; `0.2.9` extends it
+  to the publish job. Code identical to `0.2.8`.
+
 ## [0.2.8] - 2026-05-18
 
 (First release under the `@stelnyx/secgate` npm scope. `v0.2.7` was tagged
