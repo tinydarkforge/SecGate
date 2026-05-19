@@ -26,7 +26,14 @@ One command. One report. One exit code.
 
 **Honest positioning.** SecGate is a **triage accelerator**, not a defect oracle. Dogfooded against a 2,628-file production codebase: **1,858 → 46 actionable findings — 98% noise demoted**. The wrapped scanners are each noisy in isolation (industry estimate: ~70% of raw SAST/SCA output is signal-less). SecGate's job is to surface what's actionable and demote the rest — see [What we demote (and why)](#what-we-demote-and-why).
 
-**Status.** Early release (`v0.2.12`). Published with [npm provenance](https://docs.npmjs.com/generating-provenance-statements). Report vulnerabilities via [SECURITY.md](SECURITY.md).
+**Status.** Early release (`v0.2.13`). Published with [npm provenance](https://docs.npmjs.com/generating-provenance-statements). Report vulnerabilities via [SECURITY.md](SECURITY.md).
+
+**Accuracy contract.** SecGate's aggregation pipeline is deterministic — same inputs produce JSON-byte-identical findings, score, and gate status across every run. Two test suites lock the contract:
+
+- `test/determinism.mjs` — JSON byte-equality across reruns, order-stable dedup, override + ignore applied identically.
+- `test/golden-secgate.mjs` — hand-crafted 11-finding fixture; expected counts, score (`22`), and gate status are inline so any change surfaces in code review.
+
+Full pipeline spec lives in [`docs/aggregation.md`](docs/aggregation.md).
 
 ---
 
@@ -467,7 +474,7 @@ Each run writes:
 
 ```json
 {
-  "version": "0.2.12",
+  "version": "0.2.13",
   "timestamp": "ISO 8601",
   "target": "/absolute/path",
   "mode": "dry-run | apply",
@@ -585,6 +592,7 @@ The `riskScore` in the report is the sum of these weights across all findings. T
 |--------------------------------------------------------|--------------------------------------------------------------------------------|
 | [`CHANGELOG.md`](CHANGELOG.md)                         | Version history — Added / Changed / Fixed / Security per release               |
 | [`OPEN-CORE.md`](OPEN-CORE.md)                         | OSS core boundary and paid extension roadmap                                   |
+| [`docs/aggregation.md`](docs/aggregation.md)           | Aggregation pipeline contract: pipeline stages, score formula, gate rule       |
 | [`docs/comparison.md`](docs/comparison.md)             | Feature matrix vs Snyk / Trivy / Semgrep / Aikido                              |
 | [`docs/coverage.md`](docs/coverage.md)                 | Scanner-to-category matrix, explicit gaps                                      |
 | [`docs/tuning.md`](docs/tuning.md)                     | Thresholds, baselines, suppression, CI vs local defaults                       |

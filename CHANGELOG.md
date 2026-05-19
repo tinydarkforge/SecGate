@@ -6,6 +6,8 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) + [Semantic Ver
 
 ## [Unreleased]
 
+## [0.2.13] - 2026-05-19
+
 ### Added
 - **Determinism contract test** (`test/determinism.mjs`): pins the aggregation
   pipeline against silent flakes — same inputs produce JSON-byte-identical
@@ -28,9 +30,16 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) + [Semantic Ver
 
 ### Deferred
 - **Scanner cross-check** (`test/crosscheck-semgrep.mjs`) is deferred to a
-  follow-up issue. Item 2 of #66 needs `semgrep` installed in CI and a
+  follow-up issue (#68). Item 2 of #66 needs `semgrep` installed in CI and a
   hermetic fixture repo with known findings; the cost-benefit argued for
   shipping the local determinism + golden contracts first.
+
+### Changed
+- **README**: added the "Accuracy contract" block under Status, linking the
+  new `test/determinism.mjs`, `test/golden-secgate.mjs`, and
+  `docs/aggregation.md`. Documentation table now lists `docs/aggregation.md`.
+- **LICENSE** + **scripts/verify-release.sh**: brand-rename leftovers cleaned
+  (`StelNyx` → `Stelnyx`, `tinydarkforge/SecGate` → `Stelnyx/SecGate`).
 
 ## [0.2.12] - 2026-05-19
 
@@ -293,7 +302,8 @@ Initial public release to npm as `@stelnyx/secgate`.
 - npm publish with provenance (`--provenance`).
 - Risk scoring and exit code semantics: exit `0` = clean or low/medium only; exit `1` = CRITICAL or HIGH findings present.
 
-[Unreleased]: https://github.com/Stelnyx/SecGate/compare/v0.2.12...HEAD
+[Unreleased]: https://github.com/Stelnyx/SecGate/compare/v0.2.13...HEAD
+[0.2.13]: https://github.com/Stelnyx/SecGate/compare/v0.2.12...v0.2.13
 [0.2.12]: https://github.com/Stelnyx/SecGate/compare/v0.2.11...v0.2.12
 [0.2.11]: https://github.com/Stelnyx/SecGate/compare/v0.2.10...v0.2.11
 [0.2.10]: https://github.com/Stelnyx/SecGate/compare/v0.2.9...v0.2.10
