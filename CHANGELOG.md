@@ -6,6 +6,13 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) + [Semantic Ver
 
 ## [Unreleased]
 
+## [0.2.10] - 2026-05-18
+
+### Changed
+- **CI**: validates the new Trusted Publishing (OIDC) auth flow end-to-end.
+  No code or behavior changes from `0.2.9`; the bump exists to exercise
+  the publish pipeline now that `NPM_TOKEN` has been revoked.
+
 ## [0.2.9] - 2026-05-18
 
 ### Fixed
@@ -238,7 +245,8 @@ Initial public release to npm as `@stelnyx/secgate`.
 - npm publish with provenance (`--provenance`).
 - Risk scoring and exit code semantics: exit `0` = clean or low/medium only; exit `1` = CRITICAL or HIGH findings present.
 
-[Unreleased]: https://github.com/Stelnyx/SecGate/compare/v0.2.9...HEAD
+[Unreleased]: https://github.com/Stelnyx/SecGate/compare/v0.2.10...HEAD
+[0.2.10]: https://github.com/Stelnyx/SecGate/compare/v0.2.9...v0.2.10
 [0.2.9]: https://github.com/Stelnyx/SecGate/compare/v0.2.8...v0.2.9
 [0.2.8]: https://github.com/Stelnyx/SecGate/compare/v0.2.7...v0.2.8
 [0.2.7]: https://github.com/Stelnyx/SecGate/compare/v0.2.4...v0.2.7
