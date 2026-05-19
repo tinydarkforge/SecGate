@@ -35,7 +35,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       # Install optional external scanners.
       # SecGate skips any tool that is not on PATH — remove steps you don't need.
@@ -74,7 +74,7 @@ jobs:
       # Upload HTML + JSON as build artifacts (always, even on failure).
       - name: Upload HTML + JSON report
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: secgate-report-${{ github.run_number }}
           path: |
