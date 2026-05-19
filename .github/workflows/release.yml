@@ -248,9 +248,6 @@ jobs:
           node-version: "22"
           registry-url: "https://registry.npmjs.org"
 
-      - name: Upgrade npm to >=11.5.1 (required for Trusted Publishing OIDC)
-        run: npm install -g npm@latest
-
       - name: Install external scanners
         uses: ./.github/actions/install-scanners
 
