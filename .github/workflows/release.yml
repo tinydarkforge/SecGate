@@ -258,6 +258,8 @@ jobs:
         run: node secgate.js .
 
       - name: Publish to npm with provenance
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: npm publish --access public --provenance
 
       - name: Verify the published package installs and runs
