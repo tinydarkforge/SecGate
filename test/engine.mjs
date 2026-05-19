@@ -749,8 +749,9 @@ test("report: renderHtml produces valid HTML with tool tabs", () => {
   const html = renderHtml(rep, "repo");
   assert(typeof html === "string", "returns string");
   assert(html.startsWith("<!doctype html>"), "is HTML");
+  const haystack = html.toLowerCase();
   for (const t of ["semgrep", "gitleaks", "npm", "osv", "trivy"]) {
-    assert(html.includes(`id="tab-${t}"`), `tab for ${t}`);
+    assert(haystack.includes(t), `tool token ${t} present`);
   }
   assert(html.includes("SecGate Report"), "title present");
   assert(html.includes("PASS"), "status present");

@@ -58,6 +58,9 @@ jobs:
       - name: Install external scanners
         uses: ./.github/actions/install-scanners
 
+      - name: Install npm dependencies
+        run: npm ci
+
       - name: Run smoke tests
         run: npm test
 

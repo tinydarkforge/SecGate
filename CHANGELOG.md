@@ -6,6 +6,45 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) + [Semantic Ver
 
 ## [Unreleased]
 
+## [0.2.8] - 2026-05-18
+
+(First release under the `@stelnyx/secgate` npm scope. `v0.2.7` was tagged
+but its CI pipeline failed before publish — the `npm test` step lacked an
+`npm ci` install step, so `@stelnyx/report-theme` could not be resolved.
+Code in `0.2.8` is identical to `0.2.7` plus the CI install fix and two
+stale HTML-tab assertions updated to match the new theme markup.)
+
+### Changed
+- **npm scope rename**: `@tinydarkforge/secgate` → `@stelnyx/secgate`.
+  Repository, homepage, and bug-tracker URLs now point to
+  `github.com/Stelnyx/SecGate`. The old `@tinydarkforge/secgate@0.2.4`
+  remains published but is deprecated; install
+  `npm i @stelnyx/secgate` going forward.
+- **Theme dependency**: `@stelnyx/report-theme@^0.1.0` (registry), replacing
+  the previous local `file:../report-theme` path so end-user installs
+  resolve cleanly via npm.
+- **README**: lead with the 1,858 → 46 actionable demote stat; "Tiers
+  (planned)" and "Product vision" moved below the CI / Report sections
+  so first-time readers reach `npx @stelnyx/secgate .` faster. Stale
+  schema example `version: "0.2.4"` corrected to `"0.2.7"`.
+- **`riskScore` vs `securityScore`**: new note clarifying the deterministic
+  0–100 Security Score (top of README) is the canonical posture metric;
+  the legacy unbounded `riskScore` is kept for back-compat only.
+
+### Added
+- **Example config shipped**: `.secgate.config.example.json` is now included
+  in the npm tarball (`files[]`), so `npx`'d users see the canonical
+  template without cloning the repo.
+
+### Fixed
+- **CI release pipeline**: `npm ci` step added before `npm test` in
+  `.github/workflows/release.yml` (smoke tests previously failed to
+  resolve registry-installed dependencies).
+- **Stale `id="tab-${tool}"` assertions** in `test/engine.mjs` and
+  `test/smoke.mjs` rewritten to check for lower-case tool tokens in the
+  rendered HTML — the new `themeShell`-based report no longer renders
+  the legacy `<input id="tab-…">` radio-tab markup.
+
 ## [0.2.7] - 2026-05-12
 
 (The `v0.2.6` tag was cut but never published to npm; everything below — the
