@@ -1,19 +1,15 @@
 <!-- markdownlint-disable MD033 MD041 -->
 
-```text
-    █▀▀▀▀▜▜▜▜▜▀▀█    █████ █████ █████ █████ █████ █████ █████
-    █           █    █     █     █     █     █   █   █   █
-    █    ◎  ◎   █    █████ ████  █     █ ███ █████   █   ████
-    █ ┌────────┐█        █ █     █     █   █ █   █   █   █
-      │↚ ↛  ↝ ↞│     █████ █████ █████ █████ █   █   █   █████
-     ⬤↚ ↛ ↜  ↞⬤
-      │ ↛ ↜ ↝ ↞│    ━━━━━━━━━━━━━ SECURITY GATE ━━━━━━━━━━━━━
-      └────────┘    Semgrep · Gitleaks · osv-scanner · Trivy
-                    · npm audit  —  one command, one report,
-                    one exit code. MIT · No account · No tel.
-```
+<div align="center">
 
-<p align="center">
+# SecGate
+
+**A single-command security gate for CI/CD.**
+
+Semgrep · Gitleaks · osv-scanner · Trivy · npm audit
+One command. One report. One exit code.
+
+<p>
   <a href="https://www.npmjs.com/package/@stelnyx/secgate"><img alt="npm" src="https://img.shields.io/npm/v/@stelnyx/secgate.svg?style=flat-square&labelColor=0a0a0a&color=00cc66"></a>
   <a href="LICENSE"><img alt="license" src="https://img.shields.io/badge/license-MIT-00cc66.svg?style=flat-square&labelColor=0a0a0a"></a>
   <img alt="node" src="https://img.shields.io/badge/node-%E2%89%A518-00cc66.svg?style=flat-square&labelColor=0a0a0a">
@@ -22,15 +18,19 @@
   <a href="https://github.com/Stelnyx/SecGate/actions/workflows/ci.yml"><img alt="self-scan" src="https://github.com/Stelnyx/SecGate/actions/workflows/ci.yml/badge.svg?branch=main"></a>
 </p>
 
-> **SecGate** is a tiny security gate for CI/CD. Runs **Semgrep, Gitleaks, osv-scanner, Trivy, and npm audit** in one command, normalizes findings into one report, fails the pipeline on CRITICAL or HIGH. No account, no telemetry — SecGate itself sends nothing. Note: three of the wrapped scanners (`npm audit`, `osv-scanner`, `Trivy`) query vulnerability data over the network — see [Network access](#-network-access). Reports are written as local files.
-
-> **Honest positioning:** SecGate is a **triage accelerator**, not a defect oracle. Dogfood scan of a 2,628-file production codebase: **1,858 → 46 actionable findings (98% noise demoted)**. The five scanners it wraps each have real false-positive rates (industry estimate: ~70% of raw SCA/SAST output is noise). SecGate's job is to surface what's actionable and demote what's not — see [What we demote (and why)](#-what-we-demote-and-why).
-
-> **Status:** Early release (`v0.2.9`). Published with [npm provenance](https://docs.npmjs.com/generating-provenance-statements). Report vulnerabilities via [SECURITY.md](SECURITY.md).
+</div>
 
 ---
 
-## ░▒▓█ Security Score
+**SecGate** orchestrates five industry-standard security scanners — **Semgrep, Gitleaks, osv-scanner, Trivy, and npm audit** — behind a single command. It normalizes their output into one report and fails the pipeline on CRITICAL or HIGH findings. No account. No telemetry. No data leaves your machine — except for the vulnerability lookups the wrapped scanners perform (see [Network access](#network-access)).
+
+**Honest positioning.** SecGate is a **triage accelerator**, not a defect oracle. Dogfooded against a 2,628-file production codebase: **1,858 → 46 actionable findings — 98% noise demoted**. The wrapped scanners are each noisy in isolation (industry estimate: ~70% of raw SAST/SCA output is signal-less). SecGate's job is to surface what's actionable and demote the rest — see [What we demote (and why)](#what-we-demote-and-why).
+
+**Status.** Early release (`v0.2.11`). Published with [npm provenance](https://docs.npmjs.com/generating-provenance-statements). Report vulnerabilities via [SECURITY.md](SECURITY.md).
+
+---
+
+## Security Score
 
 Every run now produces a **Security Score (0–100)** in addition to the binary PASS/FAIL gate. The score is deterministic: same findings → same score every time.
 
@@ -48,7 +48,7 @@ Penalty per finding: CRITICAL −25 · HIGH −10 · MEDIUM −3 · LOW −1 · 
 
 ---
 
-## ░▒▓█ TL;DR
+## TL;DR
 
 ```bash
 npx @stelnyx/secgate .
@@ -58,7 +58,7 @@ Runs all five scanners against the current directory, writes a JSON report, a se
 
 ---
 
-## ░▒▓█ What it does today
+## What it does today
 
 SecGate wraps five existing open-source scanners, runs them against a directory, and produces:
 
@@ -71,7 +71,7 @@ SecGate does not ship its own analysis engine. Every finding originates from one
 
 ---
 
-## ░▒▓█ Scanners
+## Scanners
 
 | Scanner       | Category                  | Notes                                                                 |
 |---------------|---------------------------|-----------------------------------------------------------------------|
@@ -85,7 +85,7 @@ Missing scanner binaries are **skipped gracefully** and noted in the report. No 
 
 ---
 
-## ░▒▓█ Network access
+## Network access
 
 SecGate itself makes **no network calls** — no telemetry, no account, no phone-home, and the report is written to local files. But three of the five wrapped scanners need the internet to do their job:
 
@@ -101,7 +101,7 @@ So "no telemetry" is exact; "fully air-gapped" is not — run SecGate offline an
 
 ---
 
-## ░▒▓█ What we demote (and why)
+## What we demote (and why)
 
 The HTML report has **two confidence profiles**:
 
@@ -137,7 +137,7 @@ secgate . --profile strict
 
 ---
 
-## ░▒▓█ Positioning
+## Positioning
 
 SecGate is **not** a SOC platform, a compliance tool, or a vulnerability management system. It is a **CI gate** that aggregates scanner output and fails the build when something critical is found.
 
@@ -152,7 +152,7 @@ SecGate is **not** a SOC platform, a compliance tool, or a vulnerability managem
 
 ---
 
-## ░▒▓█ Prerequisites
+## Prerequisites
 
 Node.js `>=18`. External scanners are optional — install only the ones you want to run.
 
@@ -169,7 +169,7 @@ pip install semgrep
 
 ---
 
-## ░▒▓█ Install
+## Install
 
 ### From npm (recommended)
 
@@ -195,7 +195,7 @@ sudo ln -sf "$(pwd)/secgate.js" /usr/local/bin/secgate
 
 ---
 
-## ░▒▓█ Usage
+## Usage
 
 ```bash
 # Scan current directory (dry-run, default)
@@ -234,7 +234,7 @@ secgate --help
 
 ---
 
-## ░▒▓█ Security — `--apply` in untrusted repos
+## Security — `--apply` in untrusted repos
 
 > **⚠ `--apply` executes remediations (`npm audit fix`) inside the scanned repo.** Treat this as code execution against the target. **Only use it on code you trust.**
 
@@ -253,7 +253,7 @@ secgate --help
 
 ---
 
-## ░▒▓█ Configuration
+## Configuration
 
 Create `.secgate.config.json` in your scan target directory. All fields are optional.
 
@@ -286,7 +286,7 @@ JSON Schema: [`docs/config.schema.json`](docs/config.schema.json)
 
 | Field                | Type            | Default                    | Description                                                                 |
 |----------------------|-----------------|----------------------------|-----------------------------------------------------------------------------|
-| `profile`            | `string`        | `"curated"`                | HTML report confidence profile: `"curated"` or `"strict"` (see [demotion table](#-what-we-demote-and-why)) |
+| `profile`            | `string`        | `"curated"`                | HTML report confidence profile: `"curated"` or `"strict"` (see [demotion table](#what-we-demote-and-why)) |
 | `failOn`             | `string[]`      | `["critical","high"]`      | Severity tiers that cause exit `1`                                          |
 | `scanners`           | `object`        | all `true`                 | Set any scanner to `false` to skip it                                       |
 | `severityOverrides`  | `array`         | `[]`                       | Override severity for matching signatures (glob `*` supported)              |
@@ -333,7 +333,7 @@ Suppressed findings are excluded from counters. The report's `suppressions` sect
 
 ---
 
-## ░▒▓█ CI / CD
+## CI / CD
 
 ### GitHub Actions — minimal
 
@@ -416,7 +416,7 @@ See [`.github/workflows/example-secgate.yml`](.github/workflows/example-secgate.
 
 ---
 
-## ░▒▓█ SARIF output
+## SARIF output
 
 SecGate emits [SARIF 2.1.0](https://sarifweb.azurewebsites.net/) alongside JSON and HTML. SARIF is the standard format consumed by GitHub Code Scanning, GitLab SAST, and other platforms.
 
@@ -455,7 +455,7 @@ secgate . --format sarif             # also writes JSON + HTML
 
 ---
 
-## ░▒▓█ Report output
+## Report output
 
 Each run writes:
 
@@ -467,7 +467,7 @@ Each run writes:
 
 ```json
 {
-  "version": "0.2.9",
+  "version": "0.2.11",
   "timestamp": "ISO 8601",
   "target": "/absolute/path",
   "mode": "dry-run | apply",
@@ -562,7 +562,7 @@ Every finding is normalized to one of five tiers at the `addFinding()` ingress:
 
 ---
 
-## ░▒▓█ Risk scoring
+## Risk scoring
 
 Findings are scored with static weights applied at ingress:
 
@@ -575,11 +575,11 @@ Findings are scored with static weights applied at ingress:
 
 The `riskScore` in the report is the sum of these weights across all findings. This is a **heuristic count**, not CVSS, not EPSS, not exploit-probability modeling. Use it to compare runs of the same repo over time — not as an absolute posture score.
 
-> **Note — two scores, two purposes.** `riskScore` (here) is an unbounded raw weight kept for backward compatibility with early CI dashboards. The user-facing **[Security Score](#-security-score)** (0–100) at the top of this README is the deterministic 0–100 posture metric introduced in `v0.2.x` and is the one to surface in new dashboards.
+> **Note — two scores, two purposes.** `riskScore` (here) is an unbounded raw weight kept for backward compatibility with early CI dashboards. The user-facing **[Security Score](#security-score)** (0–100) at the top of this README is the deterministic 0–100 posture metric introduced in `v0.2.x` and is the one to surface in new dashboards.
 
 ---
 
-## ░▒▓█ Documentation
+## Documentation
 
 | Doc                                                    | What's in it                                                                   |
 |--------------------------------------------------------|--------------------------------------------------------------------------------|
@@ -595,13 +595,13 @@ The `riskScore` in the report is the sum of these weights across all findings. T
 
 ---
 
-## ░▒▓█ Product vision
+## Product vision
 
 SecGate is the open-source input layer for a broader security workflow. The **core CLI** — scan orchestration, SARIF output, baselines, suppressions, HTML report — stays **MIT-licensed and free, forever**. Future paid extensions may add hosted dashboards, org-wide policy management, compliance evidence packs, and multi-repo aggregation for teams that need more than a local gate. Those do not exist today. The OSS boundary is defined in [`OPEN-CORE.md`](OPEN-CORE.md).
 
 ---
 
-## ░▒▓█ Tiers (planned)
+## Tiers (planned)
 
 > **Status:** today's CLI is MIT, single tier — `npx @stelnyx/secgate .` runs the full scan, no flags, no gates. The table below is the planned tier model that aligns SecGate with [LuxScope](https://github.com/Stelnyx/LuxScope) and [LuxFaber](https://github.com/Stelnyx/LuxFaber) — same engine at every tier, paid tiers add presentation, persistence, and governance. **`recon` ships today.** `standard` / `enterprise` arrive when the hosted-link service lands.
 
@@ -615,18 +615,12 @@ SecGate is the open-source input layer for a broader security workflow. The **co
 
 ---
 
-## ░▒▓█ Contributing
+## Contributing
 
 See [`CONTRIBUTING.md`](CONTRIBUTING.md). Report vulnerabilities privately per [`SECURITY.md`](SECURITY.md) — **do not open public issues for security reports**.
 
 ---
 
-## ░▒▓█ License
+## License
 
 [MIT](LICENSE) — © Stelnyx
-
-```text
-            ╔═══╗
-            ║ ⊙ ║   "BLOCK. SCAN. GATE."
-            ╚═══╝
-```
