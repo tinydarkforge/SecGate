@@ -17,7 +17,7 @@
 #
 set -euo pipefail
 
-REPO_SLUG="${REPO_SLUG:-tinydarkforge/SecGate}"
+REPO_SLUG="${REPO_SLUG:-Stelnyx/SecGate}"
 EXPECTED_IDENTITY_REGEX="${EXPECTED_IDENTITY_REGEX:-^https://github\.com/${REPO_SLUG}/\.github/workflows/release\.yml@refs/tags/.*}"
 EXPECTED_ISSUER="${EXPECTED_ISSUER:-https://token.actions.githubusercontent.com}"
 

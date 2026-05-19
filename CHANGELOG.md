@@ -6,6 +6,32 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) + [Semantic Ver
 
 ## [Unreleased]
 
+### Added
+- **Determinism contract test** (`test/determinism.mjs`): pins the aggregation
+  pipeline against silent flakes — same inputs produce JSON-byte-identical
+  `findings[]`, score, summary, status, and toolScores across two runs.
+  Also asserts dedup is order-stable and reversing input order does not
+  change the unique key set. Closes a class of "silent miscount" bugs that
+  could appear with Map/Set iteration order changes or new time-based fields.
+  Issue: #66 (item 1).
+- **Golden snapshot test** (`test/golden-secgate.mjs`): locks the aggregation
+  contract against a hand-crafted 11-finding fixture exercising dedup,
+  severity override, ignore globs, UNKNOWN severity, and 5 tools. Expected
+  counts, summary, score (22), per-tool scores, and gate status are inline
+  in the test so any change surfaces in code review as a literal diff,
+  not an opaque snapshot blob. Issue: #66 (item 3).
+- **Aggregation rules doc** (`docs/aggregation.md`): documents the per-finding
+  pipeline (severity normalize → override → ignore → exclude → dedup →
+  inline suppression → fixability), score formula, gate status rule, and
+  the curated/strict invariant. Cross-linked from the two new tests and the
+  follow-up scanner-cross-check work.
+
+### Deferred
+- **Scanner cross-check** (`test/crosscheck-semgrep.mjs`) is deferred to a
+  follow-up issue. Item 2 of #66 needs `semgrep` installed in CI and a
+  hermetic fixture repo with known findings; the cost-benefit argued for
+  shipping the local determinism + golden contracts first.
+
 ## [0.2.12] - 2026-05-19
 
 ### Changed
