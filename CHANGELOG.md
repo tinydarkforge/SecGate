@@ -6,6 +6,17 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) + [Semantic Ver
 
 ## [Unreleased]
 
+## [0.2.11] - 2026-05-19
+
+### Changed
+- **CI**: reverted to token-based npm publish. Trusted Publishing (OIDC)
+  attempt returned `404 PUT @stelnyx/secgate` twice despite valid provenance
+  signing; root cause is a config mismatch on the npm trusted-publisher
+  record (org/repo/workflow case or environment field). Restored
+  `NODE_AUTH_TOKEN` env on the publish step using a granular token scoped
+  to `@stelnyx` with 2FA bypass. TP migration deferred until the npm UI
+  config can be audited against the actual OIDC claim.
+
 ## [0.2.10] - 2026-05-18
 
 ### Changed
@@ -245,7 +256,8 @@ Initial public release to npm as `@stelnyx/secgate`.
 - npm publish with provenance (`--provenance`).
 - Risk scoring and exit code semantics: exit `0` = clean or low/medium only; exit `1` = CRITICAL or HIGH findings present.
 
-[Unreleased]: https://github.com/Stelnyx/SecGate/compare/v0.2.10...HEAD
+[Unreleased]: https://github.com/Stelnyx/SecGate/compare/v0.2.11...HEAD
+[0.2.11]: https://github.com/Stelnyx/SecGate/compare/v0.2.10...v0.2.11
 [0.2.10]: https://github.com/Stelnyx/SecGate/compare/v0.2.9...v0.2.10
 [0.2.9]: https://github.com/Stelnyx/SecGate/compare/v0.2.8...v0.2.9
 [0.2.8]: https://github.com/Stelnyx/SecGate/compare/v0.2.7...v0.2.8
