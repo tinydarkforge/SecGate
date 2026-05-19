@@ -6,6 +6,17 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) + [Semantic Ver
 
 ## [Unreleased]
 
+## [0.2.12] - 2026-05-19
+
+### Changed
+- **README**: premium polish for the npm registry page. Replaced the ASCII
+  robot/wordmark block with a clean centered hero (H1 + tagline + badges),
+  stripped the `░▒▓█` glyphs from every section header, dropped the
+  closing ASCII face under License, and normalized the opening blockquotes
+  to body paragraphs. No code changes; this release exists solely to
+  refresh the README rendered on `npmjs.com/package/@stelnyx/secgate`,
+  which is built from the tarball, not from `main`.
+
 ## [0.2.11] - 2026-05-19
 
 ### Changed
@@ -256,7 +267,8 @@ Initial public release to npm as `@stelnyx/secgate`.
 - npm publish with provenance (`--provenance`).
 - Risk scoring and exit code semantics: exit `0` = clean or low/medium only; exit `1` = CRITICAL or HIGH findings present.
 
-[Unreleased]: https://github.com/Stelnyx/SecGate/compare/v0.2.11...HEAD
+[Unreleased]: https://github.com/Stelnyx/SecGate/compare/v0.2.12...HEAD
+[0.2.12]: https://github.com/Stelnyx/SecGate/compare/v0.2.11...v0.2.12
 [0.2.11]: https://github.com/Stelnyx/SecGate/compare/v0.2.10...v0.2.11
 [0.2.10]: https://github.com/Stelnyx/SecGate/compare/v0.2.9...v0.2.10
 [0.2.9]: https://github.com/Stelnyx/SecGate/compare/v0.2.8...v0.2.9
